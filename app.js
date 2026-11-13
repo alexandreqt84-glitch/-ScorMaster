@@ -222,20 +222,33 @@ const PAGES = {
   compte: () => {
     if (!Cloud.enabled()) return `${backPlus}<section class="card"><h1>👥 Comptes joueurs</h1><p>Les comptes ne sont pas encore activés sur cette installation. Ton jeu fonctionne normalement, avec les données gardées sur ce téléphone.</p></section>`;
     if (Cloud.active()) return `${backPlus}<section class="card"><h1>👤 Mon compte</h1>
-      <div class="row"><span>Pseudo</span><b>${E(Cloud.pseudo())}</b></div>
+      <div class="row"><span>Nom d'utilisateur</span><b>${E(Cloud.pseudo())}</b></div>
+      ${Cloud.mail() ? `<div class="row"><span>E-mail</span><b>${E(Cloud.mail())}</b></div>` : ""}
       <div class="row"><span>Sauvegarde</span><b>${Core.server === false ? "📱 Hors ligne (envoi au retour du réseau)" : "☁️ En ligne"}</b></div>
       <small>Tes parties, favoris, profil et records sont rattachés à ton compte : retrouve-les sur n'importe quel téléphone en te connectant.</small>
       <a class="btn main" href="#/general">🌍 Classement général</a>
       <button class="btn" data-a="sync">🔄 Synchroniser maintenant</button>
       <button class="btn" data-a="logout">🚪 Se déconnecter</button></section>`;
+    const A = S.auth = S.auth || { tab: "login", id: "", email: "", pseudo: "" }, msg = `<p id="cMsg" role="status"><small>${E(Cloud.msg || "")}</small></p>`;
+    if (Cloud.recov) return `${backPlus}<section class="card"><h1>🔐 Nouveau mot de passe</h1>
+      <p>Choisis ton nouveau mot de passe, puis tu seras connecté.</p>
+      <label for="cNew">Nouveau mot de passe</label><input id="cNew" type="password" placeholder="6 caractères minimum" autocomplete="new-password">
+      ${msg}<button class="btn main" data-a="newpw">✅ Enregistrer</button></section>`;
+    const up = A.tab === "signup";
     return `${backPlus}<section class="card"><h1>👥 Mon compte</h1>
-      <p>Crée ton compte pour retrouver tes parties sur tous tes appareils et apparaître au classement général.</p>
-      <label for="cPseudo">Pseudo</label><input id="cPseudo" placeholder="Ton pseudo" autocomplete="username" autocapitalize="off" maxlength="20">
-      <label for="cPass" style="margin-top:12px">Mot de passe</label><input id="cPass" type="password" placeholder="6 caractères minimum" autocomplete="current-password">
-      <p id="cMsg" role="status"><small>${E(Cloud.msg || "")}</small></p>
-      <button class="btn main" data-a="login">🔑 Se connecter</button>
-      <button class="btn" data-a="signup">✨ Créer mon compte</button>
-      <small>Tes données d'avant la connexion sur ce téléphone seront rattachées à ton compte.</small></section>`;
+      <div class="chips" style="margin-bottom:14px"><button class="${up ? "" : "on"}" data-a="authtab" data-v="login">🔑 Connexion</button><button class="${up ? "on" : ""}" data-a="authtab" data-v="signup">✨ Inscription</button></div>
+      ${up ? `<p>Crée ton compte pour retrouver tes parties sur tous tes appareils et apparaître au classement général.</p>
+      <label for="cEmail">E-mail</label><input id="cEmail" type="email" inputmode="email" placeholder="toi@exemple.com" autocomplete="email" autocapitalize="off" value="${E(A.email)}">
+      <label for="cPseudo">Nom d'utilisateur</label><input id="cPseudo" placeholder="Visible par les autres joueurs" autocomplete="username" autocapitalize="off" maxlength="20" value="${E(A.pseudo)}">
+      <label for="cPass">Mot de passe</label><input id="cPass" type="password" placeholder="6 caractères minimum" autocomplete="new-password">
+      ${msg}<button class="btn main" data-a="signup">✨ Créer mon compte</button>
+      <small>Ton nom d'utilisateur est celui que tes amis écrivent dans une partie pour la retrouver dans leur historique.</small>`
+      : `<label for="cId">E-mail</label><input id="cId" type="text" inputmode="email" placeholder="toi@exemple.com" autocomplete="username" autocapitalize="off" value="${E(A.id)}">
+      <label for="cPass">Mot de passe</label><input id="cPass" type="password" placeholder="Ton mot de passe" autocomplete="current-password">
+      ${msg}<button class="btn main" data-a="login">🔑 Se connecter</button>
+      <button class="btn" data-a="forgot">❓ Mot de passe oublié</button>
+      <small>Ancien compte sans e-mail ? Tape ton pseudo à la place de l'e-mail.</small>`}
+      <small style="display:block;margin-top:10px">Tes données d'avant la connexion sur ce téléphone seront rattachées à ton compte.</small></section>`;
   },
 
   general: () => {
@@ -471,16 +484,25 @@ const scores = () => [...document.querySelectorAll(".sc")].map(i => Number(i.val
 const save = () => Core.setCurrent(S.cur, Core.mode());
 
 // ---------- actions ----------
+const authVals = () => { const g = id => ($("#" + id) || {}).value || "", A = S.auth = S.auth || { tab: "login", id: "", email: "", pseudo: "" };
+  if ($("#cId")) A.id = g("cId"); if ($("#cEmail")) A.email = g("cEmail"); if ($("#cPseudo")) A.pseudo = g("cPseudo"); return A; };
 const authDo = async kind => {
   const msg = $("#cMsg"), say = x => { Cloud.msg = x; if (msg) msg.innerHTML = "<small>" + E(x) + "</small>"; };
-  const p = $("#cPseudo").value, w = $("#cPass").value; say("⏳ Un instant…");
-  document.querySelectorAll('[data-a="login"],[data-a="signup"]').forEach(b => b.disabled = true);
-  try { await Cloud[kind](p, w); Cloud.msg = ""; FX.apply(); FX.toast("✅ Connecté : " + Cloud.pseudo()); S.hist = Core.hist; S.force = true; draw(); }
-  catch (e) { say("❌ " + (navigator.onLine === false ? "Pas de connexion Internet." : e.message)); document.querySelectorAll('[data-a="login"],[data-a="signup"]').forEach(b => b.disabled = false); }
+  const A = authVals(), w = ($("#cPass") || {}).value || "", btns = () => document.querySelectorAll('[data-a="login"],[data-a="signup"],[data-a="forgot"],[data-a="newpw"]');
+  say("⏳ Un instant…"); btns().forEach(b => b.disabled = true);
+  try {
+    if (kind === "forgot") { await Cloud.forgot(A.id); say("📧 Si un compte existe pour cette adresse, un e-mail vient d'être envoyé : clique sur le lien pour choisir un nouveau mot de passe."); btns().forEach(b => b.disabled = false); return; }
+    const r = kind === "signup" ? await Cloud.signup(A.email, A.pseudo, w) : kind === "newpw" ? await Cloud.newPassword(($("#cNew") || {}).value) : await Cloud.login(A.id, w);
+    if (r && r.confirm) { A.tab = "login"; A.id = r.email; Cloud.msg = "📧 Compte créé ! Clique sur le lien envoyé à " + r.email + " pour confirmer ton e-mail, puis connecte-toi."; S.force = true; draw(); return; }
+    Cloud.msg = ""; S.auth = null; FX.apply(); FX.toast("✅ Connecté : " + Cloud.pseudo()); S.hist = Core.hist; S.force = true; draw();
+  } catch (e) { say("❌ " + (navigator.onLine === false ? "Pas de connexion Internet." : e.message)); btns().forEach(b => b.disabled = false); }
 };
 const ACTIONS = {
   login: () => authDo("login"),
   signup: () => authDo("signup"),
+  forgot: () => authDo("forgot"),
+  newpw: () => authDo("newpw"),
+  authtab: v => { const A = authVals(); A.tab = v; Cloud.msg = ""; S.force = true; draw(); },
   logout: async () => {
     await Core.sync().catch(() => {}); await Core.list().catch(() => {});
     const lost = Core._pq().length + Core.pending();

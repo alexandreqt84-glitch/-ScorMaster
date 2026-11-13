@@ -4,7 +4,8 @@ A) Créer le projet (10 min, une seule fois, par toi)
  1. supabase.com > Sign in (avec GitHub) > New project > nom "scoremaster", mot de passe de base de données (note-le), région proche > Create.
  2. Menu "SQL Editor" > New query > colle tout le contenu de supabase.sql > Run (doit afficher "Success").
  3. Authentication > Sign In / Providers > Email : laisse Email activé et DÉSACTIVE "Confirm email" > Save.
-    (Les joueurs n'ont pas d'e-mail : leur pseudo sert d'identifiant.)
+    (Choix libre : désactivé = inscription immédiate ; activé = le joueur doit cliquer un lien reçu par e-mail. Le service d'e-mail gratuit de Supabase est limité à quelques messages par heure.)
+ 3b. Authentication > URL Configuration : mets "Site URL" = l'adresse de ton appli (https://TON-PSEUDO.github.io/TON-DEPOT/). Sans ça, les liens "mot de passe oublié" / "confirmer l'e-mail" ne reviennent pas dans l'appli.
  4. Project Settings > API (ou "API Keys") : copie "Project URL" et la clé "anon public" (ou "publishable").
     Ne copie JAMAIS la clé "service_role" / "secret".
 
@@ -13,11 +14,22 @@ B) Brancher l'appli
    (ou envoie-moi l'URL et la clé anon, je le fais.)
  - Renvoie les fichiers sur GitHub (config.js, cloud.js, core.js, app.js, index.html, sw.js) > attends 1-2 min > rouvre l'appli 2 fois.
 
+B2) NOUVEAU : e-mail réel + nom d'utilisateur (à faire une fois)
+ - Supabase > SQL Editor > colle supabase-comptes.sql > Run. (Les anciens comptes pseudo@scoremaster.app continuent de fonctionner : ils se connectent en tapant leur pseudo.)
+ - Renvoie sur GitHub : cloud.js, app.js, sw.js, supabase-comptes.sql.
+
 C) Utilisation
- - Plus > Mon compte > "Créer mon compte" (pseudo + mot de passe 6 caractères minimum).
+ - Plus > Mon compte > onglet Inscription : e-mail + nom d'utilisateur (unique) + mot de passe (6 caractères minimum). Ensuite : onglet Connexion avec l'e-mail + mot de passe.
  - Parties, favoris, profil et records sont rattachés au compte et retrouvés sur tout téléphone.
  - Plus > Classement général : tous les joueurs ayant un compte, par mode (Cartes / Autres jeux).
  - Les données déjà présentes sur le téléphone sont rattachées au compte à la première connexion.
- - Pas de "mot de passe oublié" (pas d'e-mail) : note-le. En cas de perte, supprime l'utilisateur dans Supabase > Authentication > Users.
+ - "Mot de passe oublié" : un lien est envoyé par e-mail pour choisir un nouveau mot de passe.
 
 Limites actuelles : chaque joueur enregistre ses propres parties ; une partie jouée à plusieurs n'est pas partagée automatiquement entre les comptes (seuls les scores/stats publics alimentent le classement général).
+
+PARTAGE DES PARTIES (mise à jour)
+ - Supabase > SQL Editor > colle supabase-partage.sql > Run (à faire une fois, après supabase.sql).
+ - Quand tu enregistres une partie, elle apparaît aussi dans l'historique des joueurs dont le NOM dans la partie
+   est exactement leur nom d'utilisateur (accents et majuscules ignorés). Écris donc leur pseudo tel quel.
+ - Seul le créateur de la partie peut la modifier ou la supprimer pour tout le monde. Un autre joueur peut seulement la masquer de son historique.
+ - Les parties EN COURS ne sont pas partagées en direct : seulement une fois enregistrées.
