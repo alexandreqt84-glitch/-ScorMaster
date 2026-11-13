@@ -31,9 +31,7 @@ const Core = {
     const keys = Object.keys(Core.dirty); if (!keys.length) { if (Core.status === "wait") Core.status = "ok"; return true; }
     const entries = {}, s = Core._load(); keys.forEach(k => { if (s[k]) entries[k] = s[k]; });
     try {
-      const r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries }) });
-      if (!r.ok) throw new Error(r.status);
-      const d = await r.json();
+      const d = await Core._json("api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries }) });
       keys.forEach(k => { if (s[k] && entries[k] && s[k].t === entries[k].t) delete Core.dirty[k]; });
       Core._merge(d.entries); Core._save(); Core.status = "ok"; return true;
     } catch (e) { Core.status = "off"; return false; }
@@ -41,10 +39,7 @@ const Core = {
   // récupère les réglages du serveur (et lui envoie ce qu'il n'a pas) ; renvoie true si quelque chose a changé ici
   async sync() {
     try {
-      const c = new AbortController(), to = setTimeout(() => c.abort(), 4000);
-      const r = await fetch("api/settings", { signal: c.signal }); clearTimeout(to);
-      if (!r.ok) throw new Error(r.status);
-      const d = (await r.json()).entries || {}, s = Core._load(), changed = Core._merge(d);
+      const d = (await Core._json("api/settings")).entries || {}, s = Core._load(), changed = Core._merge(d);
       Object.keys(s).forEach(k => { if (!d[k] || d[k].t < s[k].t) Core.dirty[k] = 1; });
       Core._save(); Core.status = "ok"; await Core.push(); return changed;
     } catch (e) { Core.status = "off"; return false; }
@@ -70,7 +65,8 @@ const Core = {
   _sp(a) { try { localStorage.setItem(Core.PK, JSON.stringify(a)); return true; } catch (e) { return false; } },
   _pq() { try { const d = JSON.parse(localStorage.getItem(Core.PQ)); return Array.isArray(d) ? d : []; } catch (e) { return []; } },
   _spq(a) { try { localStorage.setItem(Core.PQ, JSON.stringify(a)); } catch (e) {} },
-  async _json(url, opt) {
+  async _json(url, opt = {}) {
+    if (typeof Cloud !== "undefined" && Cloud.active()) return Cloud.call(url, opt.method || "GET", opt.body);   // compte connecté : sauvegarde en ligne
     const c = new AbortController(), to = setTimeout(() => c.abort(), 5000);
     try { const r = await fetch(url, { ...opt, signal: c.signal }); if (!r.ok) throw new Error(r.status); return await r.json(); } finally { clearTimeout(to); }
   },
@@ -83,7 +79,7 @@ const Core = {
       if (!Array.isArray(d)) throw new Error("pas de serveur");
       Core.server = true; const keep = new Set(Core._pq()); loc = [...loc.filter(x => keep.has(x.id) && !d.some(y => y.id === x.id)), ...d]; Core._sp(loc);
     } catch (e) { Core.server = false; }
-    Core.hist = loc; Core.histT = Date.now(); return loc;
+    Core.hist = loc; Core.histT = Date.now(); if (typeof Cloud !== "undefined") Cloud.pushProfile(); return loc;
   },
   async save(p) {
     const loc = [p, ...Core._lp().filter(x => x.id !== p.id)];
@@ -91,6 +87,7 @@ const Core = {
     if (Core.hist) Core.hist = [p, ...Core.hist.filter(x => x.id !== p.id)];
     try { await Core._json(Core.API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) }); Core.server = true; }
     catch (e) { if (Core.server !== false) { const q = Core._pq(); if (!q.includes(p.id)) Core._spq([...q, p.id]); } }
+    if (typeof Cloud !== "undefined") Cloud.pushProfile();
     return true;
   },
   async removeAll() { Core._sp([]); Core._spq([]); Core.hist = []; try { await Core._json(Core.API, { method: "DELETE" }); } catch (e) {} },

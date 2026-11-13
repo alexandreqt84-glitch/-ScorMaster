@@ -1,0 +1,26 @@
+Simulation de 500 parties par jeu (joueurs au hasard ou à stratégie simple, vraies règles)
+
+jeu             manches  moyenne   p99,9     max  limite  verdict
+badminton          1500     21.2      28      30      30  ✅ serrée
+badminton11        1500     11.3      17      18       —  — aucune  → seuil inhabituel 25
+belote            12000     82.6     252     272     272  ✅ serrée
+cochon            15000      7.6      44      45       —  — aucune  → seuil inhabituel 60
+cribbage           8000     15.5      38      42      78  ✅ large
+dixit             33084      2.0       6       7       9  ✅ serrée
+dominos            3000     32.6     111     118     168  ✅ serrée
+fifa               2000      1.7       8       8       —  — aucune  → seuil inhabituel 12
+huitAmericain     16304     65.0     413     508     508  ✅ serrée
+phase10           15130     27.1     120     155     230  ✅ serrée
+ping-pong          1500     11.3      18      22       —  — aucune  → seuil inhabituel 30
+rummikub           9126     44.1     229     314     788  ✅ large
+sixQuiPrend       11974     13.5      51      58     171  ✅ large  → seuil inhabituel 80
+skyjo              6041     32.4     132     168     284  ✅ large
+skyjo-brut         6041     71.1     188     212     284  ✅ serrée
+smash              2974      1.9       7       8       —  — aucune  → seuil inhabituel 12
+spades            33990     70.9     284     400     400  ✅ serrée
+tennis             1500      6.2       7       7       7  ✅ serrée
+uno                3000    182.1     659     933    1240  ✅ serrée
+volley             1500     25.2      31      32       —  — aucune  → seuil inhabituel 50
+wizard            30000     26.9     120     150     220  ✅ serrée
+yams               1500    155.1     273     291     375  ✅ serrée
+yams-tour         19500     11.7      50      50       —  — aucune

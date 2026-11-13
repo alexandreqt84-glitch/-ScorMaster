@@ -216,7 +216,39 @@ const PAGES = {
   plus: () => `<section class="card menu"><h2>Plus</h2>
       <a href="#/jeux"><i>📚</i>Jeux et règles</a><a href="#/historique"><i>📜</i>Historique</a>
       <a href="#/stats"><i>📊</i>Statistiques</a><a href="#/succes"><i>🏆</i>Succès</a>
+      <a href="#/general"><i>🌍</i>Classement général</a><a href="#/compte"><i>👥</i>Mon compte</a>
       <a href="#/aide"><i>💡</i>Aide et nouveautés</a><a href="#/parametres"><i>⚙️</i>Paramètres</a></section>`,
+
+  compte: () => {
+    if (!Cloud.enabled()) return `${backPlus}<section class="card"><h1>👥 Comptes joueurs</h1><p>Les comptes ne sont pas encore activés sur cette installation. Ton jeu fonctionne normalement, avec les données gardées sur ce téléphone.</p></section>`;
+    if (Cloud.active()) return `${backPlus}<section class="card"><h1>👤 Mon compte</h1>
+      <div class="row"><span>Pseudo</span><b>${E(Cloud.pseudo())}</b></div>
+      <div class="row"><span>Sauvegarde</span><b>${Core.server === false ? "📱 Hors ligne (envoi au retour du réseau)" : "☁️ En ligne"}</b></div>
+      <small>Tes parties, favoris, profil et records sont rattachés à ton compte : retrouve-les sur n'importe quel téléphone en te connectant.</small>
+      <a class="btn main" href="#/general">🌍 Classement général</a>
+      <button class="btn" data-a="sync">🔄 Synchroniser maintenant</button>
+      <button class="btn" data-a="logout">🚪 Se déconnecter</button></section>`;
+    return `${backPlus}<section class="card"><h1>👥 Mon compte</h1>
+      <p>Crée ton compte pour retrouver tes parties sur tous tes appareils et apparaître au classement général.</p>
+      <label for="cPseudo">Pseudo</label><input id="cPseudo" placeholder="Ton pseudo" autocomplete="username" autocapitalize="off" maxlength="20">
+      <label for="cPass" style="margin-top:12px">Mot de passe</label><input id="cPass" type="password" placeholder="6 caractères minimum" autocomplete="current-password">
+      <p id="cMsg" role="status"><small>${E(Cloud.msg || "")}</small></p>
+      <button class="btn main" data-a="login">🔑 Se connecter</button>
+      <button class="btn" data-a="signup">✨ Créer mon compte</button>
+      <small>Tes données d'avant la connexion sur ce téléphone seront rattachées à ton compte.</small></section>`;
+  },
+
+  general: () => {
+    const mode = Core.mode();
+    if (!Cloud.enabled()) return `${backPlus}<section class="card"><h1>🌍 Classement général</h1><p>Les comptes ne sont pas activés sur cette installation.</p></section>`;
+    if (!Cloud.active()) return `${backPlus}<section class="card"><h1>🌍 Classement général</h1><p>Connecte-toi pour voir le classement de tous les joueurs.</p><a class="btn main" href="#/compte">👥 Me connecter</a></section>`;
+    if (Date.now() - Cloud.boardT > 15000) Cloud.loadBoard().then(() => { if (S.page === "general" && !typing()) draw(); });
+    const me = Cloud.session().uid, rows = (Cloud.board || []).filter(p => p.stats && p.stats[mode]).sort((a, b) => b.stats[mode].pg - a.stats[mode].pg);
+    return `${backPlus}<section class="card"><h1>🌍 Classement général ${MODES[mode].emoji}</h1><p><small>Tous les joueurs ayant un compte · mode ${MODES[mode].nom}.</small></p>
+      <div class="list">${rows.map((p, k) => { const s = p.stats[mode]; return `<div class="row ${p.user_id === me ? "me" : ""}"><span>${["🥇", "🥈", "🥉"][k] || k + 1 + "."} ${E(p.avatar || "🎲")} <b>${E(p.pseudo)}</b>${p.user_id === me ? " (toi)" : ""}<br><small>${s.niveau ? s.niveau.emoji + " " + s.niveau.nom + " · " : ""}${s.jouees} partie(s) · ${s.victoires} 🏆</small></span><b>${s.pg} ⭐</b></div>`; }).join("") || `<p class="empty">${Cloud.boardT && !Cloud.board ? (Cloud.boardErr || "Chargement…") : "Personne n'est encore classé : termine une partie !"}</p>`}</div>
+      ${Cloud.boardErr && Cloud.board ? `<small>${E(Cloud.boardErr)}</small>` : ""}</section>`;
+  },
+
 
   stats: () => {
     const done = histFiltered(), all = Core.stats(S.hist, Core.mode()), days = [...Array(7)].map((_, k) => { const d = new Date(); d.setDate(d.getDate() - (6 - k)); return d; });
@@ -362,7 +394,7 @@ const PAGES = {
 };
 
 // ---------- routage ----------
-const NEED = ["", "nouvelle", "jeux", "historique", "classement", "profil", "parametres", "fin", "stats", "succes"];
+const NEED = ["", "nouvelle", "jeux", "historique", "classement", "profil", "parametres", "fin", "stats", "succes", "general"];
 const typing = () => /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName || "");
 let rendering = null, redo = false;
 // Un seul rendu à la fois : si on change de page pendant un rendu, on refait un seul rendu final (plus de page périmée qui écrase la bonne).
@@ -380,9 +412,9 @@ async function render() {
   const lg = document.querySelector(".logo>span"); if (lg) lg.textContent = MODES[mode].emoji;
   const tg = document.querySelector(".tag .mtag"); if (tg) tg.textContent = MODES[mode].emoji + " " + MODES[mode].nom;
   const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = mode === "autres" ? "#040a16" : "#12060b";
-  const tab = { "": "", partie: "", jouer: "nouvelle", fin: "classement", jeux: "plus", historique: "plus", stats: "plus", succes: "plus", parametres: "plus", aide: "plus" }[page] ?? page;
+  const tab = { "": "", partie: "", jouer: "nouvelle", fin: "classement", jeux: "plus", historique: "plus", stats: "plus", succes: "plus", parametres: "plus", aide: "plus", compte: "plus", general: "classement" }[page] ?? page;
   document.querySelectorAll("#tabs a").forEach(t => t.classList.toggle("on", t.dataset.p === tab));
-  document.body.dataset.theme = { classement: "or", fin: "or", succes: "or", profil: "emeraude", historique: "braise", stats: "emeraude", parametres: "acier", aide: "acier", plus: "acier" }[page] || "";
+  document.body.dataset.theme = { classement: "or", fin: "or", succes: "or", profil: "emeraude", historique: "braise", stats: "emeraude", parametres: "acier", aide: "acier", plus: "acier", compte: "acier", general: "or" }[page] || "";
   const needs = NEED.includes(page);
   if (needs) S.hist = Core.hist || await Core.list();   // données déjà en mémoire : affichage instantané
   if (redo) return;                                      // on a changé de page entre-temps : inutile de dessiner celle-ci
@@ -439,7 +471,22 @@ const scores = () => [...document.querySelectorAll(".sc")].map(i => Number(i.val
 const save = () => Core.setCurrent(S.cur, Core.mode());
 
 // ---------- actions ----------
+const authDo = async kind => {
+  const msg = $("#cMsg"), say = x => { Cloud.msg = x; if (msg) msg.innerHTML = "<small>" + E(x) + "</small>"; };
+  const p = $("#cPseudo").value, w = $("#cPass").value; say("⏳ Un instant…");
+  document.querySelectorAll('[data-a="login"],[data-a="signup"]').forEach(b => b.disabled = true);
+  try { await Cloud[kind](p, w); Cloud.msg = ""; FX.apply(); FX.toast("✅ Connecté : " + Cloud.pseudo()); S.hist = Core.hist; S.force = true; draw(); }
+  catch (e) { say("❌ " + (navigator.onLine === false ? "Pas de connexion Internet." : e.message)); document.querySelectorAll('[data-a="login"],[data-a="signup"]').forEach(b => b.disabled = false); }
+};
 const ACTIONS = {
+  login: () => authDo("login"),
+  signup: () => authDo("signup"),
+  logout: async () => {
+    await Core.sync().catch(() => {}); await Core.list().catch(() => {});
+    const lost = Core._pq().length + Core.pending();
+    if (!confirm(lost ? `⚠️ ${lost} élément(s) pas encore envoyé(s) en ligne seront PERDUS. Se déconnecter quand même ?` : "Te déconnecter ? Tes données restent dans ton compte ; elles seront effacées de ce téléphone.")) return;
+    Cloud.logout(); FX.apply(); S.hist = []; S.force = true; location.hash = "#/compte"; draw();
+  },
   mode: v => {
     Core.setMode(v); S.pick = null; S.q = ""; S.force = true;
     const page = location.hash.slice(2).split("/")[0];
