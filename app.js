@@ -64,20 +64,24 @@ const SORTS = [["pg", "⭐ Gloire"], ["vic", "🏆 Victoires"], ["taux", "📈 R
 const SORT = { pg: (a, b) => b.pg - a.pg || b.victoires - a.victoires || a.jouees - b.jouees, vic: (a, b) => b.victoires - a.victoires || b.pg - a.pg,
   taux: (a, b) => (b.jouees >= 3) - (a.jouees >= 3) || b.taux - a.taux || b.jouees - a.jouees };
 const chipRow = (list, key, cur) => `<div class="chips">${list.map(([k, t]) => `<button data-a="${key}" data-v="${k}" class="${cur === k ? "on" : ""}">${t}</button>`).join("")}</div>`;
+// joueur ayant un compte (classement général chargé) correspondant à un nom de partie
+const cloudOf = n => { if (!n || typeof Cloud === "undefined" || !Cloud.active() || !Cloud.board) return null; const k = Core.norm(n); return Cloud.board.find(p => Core.norm(p.pseudo) === k || (p.stats && p.stats.nom && Core.norm(p.stats.nom) === k)) || null; };
+const pHref = n => { if (isMe(n)) return "#/profil"; const c = cloudOf(n); return c ? (c.user_id === Cloud.session().uid ? "#/profil" : "#/joueur/u:" + c.user_id) : "#/joueur/n:" + encodeURIComponent(String(n).trim()); };
+const plink = (n, inner) => `<a class="plink" href="${pHref(n)}">${inner === undefined ? E(n) : inner}</a>`;
 const face = n => isMe(n) ? `<span class="av">${avatarHtml(Core.me())}</span>`
-  : `<span class="av" style="background:hsl(${[...Core.norm(n)].reduce((h, c) => h * 31 + c.charCodeAt(0), 7) % 360} 55% 34%)">${E((n.trim()[0] || "?").toUpperCase())}</span>`;
+  : (c => c && c.avatar ? `<span class="av">${E(c.avatar)}</span>` : null)(cloudOf(n)) || `<span class="av" style="background:hsl(${[...Core.norm(n)].reduce((h, c) => h * 31 + c.charCodeAt(0), 7) % 360} 55% 34%)">${E((n.trim()[0] || "?").toUpperCase())}</span>`;
 const forme = f => `<span class="forme">${f.length ? f.map(r => `<i class="d ${r}" title="${{ V: "Victoire", D: "Défaite", E: "Égalité" }[r]}">${r}</i>`).join("") : "<small>—</small>"}</span>`;
 const xp = s => `<div class="xp"><div class="xpt"><b>${s.niveau.emoji} ${s.niveau.nom}</b><small>${s.niveau.next ? s.pg + " / " + s.niveau.next + " ⭐ → " + s.niveau.nextNom : s.pg + " ⭐ · niveau max !"}</small></div>
   <div class="bar"><i style="width:${s.niveau.pct}%"></i></div></div>`;
-const detailStats = (s, rang, all) => `${xp(s)}
+const detailStats = (s, rang, other) => `${xp(s)}
   <div class="kpis"><div><b>${s.victoires}</b><small>victoires</small></div><div><b>${s.defaites}</b><small>défaites</small></div><div><b>${s.meilleureSerie}</b><small>meilleure série</small></div></div>
   <div class="kpis"><div><b>${s.taux}%</b><small>réussite</small></div><div><b>${s.jouees}</b><small>parties</small></div><div><b>${s.moy}</b><small>points moy.</small></div></div>
   <div class="row"><span>Forme (5 dernières)</span>${forme(s.forme)}</div>
   ${s.serie >= 2 ? `<div class="row"><span>Série en cours</span><b>🔥 ${s.serie} victoires</b></div>` : ""}
   ${s.meilleurJeu ? `<div class="row"><span>Jeu fétiche</span><b>${E(s.meilleurJeu)}</b></div>` : ""}
   ${s.nemesis ? `<div class="row"><span>😈 Bête noire</span><b>${E(s.nemesis.nom)} <small>(${s.nemesis.n}×)</small></b></div>` : ""}
-  ${s.victime ? `<div class="row"><span>🎯 Tu domines</span><b>${E(s.victime.nom)} <small>(${s.victime.n}×)</small></b></div>` : ""}
-  <div class="badges">${Core.badges(s, rang).filter(b => b[3]).map(([e, n, d]) => `<span class="bdg" title="${E(d)}">${e} ${n}</span>`).join("") || "<small>Aucun succès débloqué pour l'instant.</small>"}</div><a class="link" href="#/succes">🏆 Voir tous les succès →</a>`;
+  ${s.victime ? `<div class="row"><span>🎯 ${other ? "Il/elle domine" : "Tu domines"}</span><b>${E(s.victime.nom)} <small>(${s.victime.n}×)</small></b></div>` : ""}
+  <div class="badges">${Core.badges(s, rang).filter(b => b[3]).map(([e, n, d]) => `<span class="bdg" title="${E(d)}">${e} ${n}</span>`).join("") || "<small>Aucun succès débloqué pour l'instant.</small>"}</div>${other ? "" : `<a class="link" href="#/succes">🏆 Voir tous les succès →</a>`}`;
 // défi : combien de gloire pour passer devant / prendre le trône
 function defiHtml(byPg) {
   const me = Core.me(); if (!me.nom) return `<p>👤 Crée ton profil pour te mesurer aux autres et viser la 1<sup>re</sup> place.</p><a class="btn main" href="#/profil">Créer mon profil</a>`;
@@ -170,7 +174,7 @@ function profilStats(me, all, rang, st) {
     <section class="card"><h2>📈 Évolution de ma gloire</h2>${spark(pr.evo)}</section>
     <section class="card"><h2>🎛️ Par mode</h2><div class="mboxes">${modeBox("cartes", sc)}${modeBox("autres", sa)}</div></section>
     ${games.length ? `<section class="card"><h2>🎮 Mes jeux</h2><div class="scroll"><table class="tbl left"><thead><tr><th>Jeu</th><th>Parties</th><th>🏆</th><th>Réussite</th></tr></thead><tbody>${games.map(g => `<tr><td>${E(g.j)}</td><td>${g.n}</td><td>${g.v}</td><td>${g.n ? Math.round(100 * g.v / g.n) : 0} %</td></tr>`).join("")}</tbody></table></div></section>` : ""}
-    ${rivals.length ? `<section class="card"><h2>🤝 Face à face</h2>${rivals.map(r => `<div class="vs"><div class="vst"><b>${face(r.nom)} ${E(r.nom)}</b><small>${r.v} 🏆 · ${r.d} 💔</small></div><div class="vsb"><i style="width:${Math.round(100 * r.v / (r.v + r.d || 1))}%"></i></div></div>`).join("")}<small>Barre = part de mes victoires contre chaque joueur.</small></section>` : ""}
+    ${rivals.length ? `<section class="card"><h2>🤝 Face à face</h2>${rivals.map(r => `<div class="vs"><div class="vst"><b>${face(r.nom)} ${plink(r.nom)}</b><small>${r.v} 🏆 · ${r.d} 💔</small></div><div class="vsb"><i style="width:${Math.round(100 * r.v / (r.v + r.d || 1))}%"></i></div></div>`).join("")}<small>Barre = part de mes victoires contre chaque joueur.</small></section>` : ""}
     <section class="card"><h2>🏆 Mes records</h2>
       <div class="row"><span>Joueur depuis le</span><b>${pr.premiere ? new Date(pr.premiere).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</b></div>
       <div class="row"><span>Points marqués au total</span><b>${pr.points}</b></div>
@@ -186,6 +190,47 @@ function jeuDuJour(m) {
   const d = new Date(), k = d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate();
   return l[(k * 7 + (m === "autres" ? 3 : 0)) % l.length];
 }
+
+// ---------- profil d'un autre joueur ----------
+// résultat d'un joueur dans une partie : V / D / E (égalité) / S (solo), rang et score
+function resultOf(p, nom) {
+  const k = Core.norm(nom), i = p.joueurs.findIndex(n => Core.norm(n) === k); if (i < 0) return null;
+  const t = Core.totals(p), n = p.joueurs.length, rk = t.map(v => 1 + t.filter(w => p.low ? w < v : w > v).length), tops = rk.filter(x => x === 1).length;
+  return { i, n, rang: rk[i], score: t[i], res: n < 2 ? "S" : rk[i] === 1 && tops === 1 ? "V" : rk[i] === 1 ? "E" : "D" };
+}
+function joueurView(nom, avatarHtmlStr, parties, board, info) {
+  const k = Core.norm(nom), fin = parties.filter(p => p.fini && p.joueurs.some(n => Core.norm(n) === k)).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const all = Core.stats(parties), st = all.find(x => Core.norm(x.nom) === k), find = a => a.find(x => Core.norm(x.nom) === k);
+  const head = `${backTo}<section class="card"><h1>👤 ${E(nom)}</h1><div class="av big">${avatarHtmlStr}</div>${info || ""}</section>`;
+  if (!st && !fin.length) return `${head}<section class="card empty"><p>Aucune partie terminée pour ${E(nom)} pour l'instant.</p></section>`;
+  const pr = Core.profil(parties, nom), sc = find(Core.stats(parties, "cartes")), sa = find(Core.stats(parties, "autres"));
+  const modeBox = (m, x) => `<div class="mbox"><b>${MODES[m].emoji} ${MODES[m].nom}</b>${x ? `<span>${x.jouees} parties · ${x.victoires} 🏆 · ${x.taux} %</span><small>${x.pg} ⭐</small>` : `<span><small>Pas encore joué</small></span>`}</div>`;
+  const games = st ? Object.entries(st.jeux).map(([j, n]) => ({ j, n, v: st.vic[j] || 0 })).sort((a, b) => b.n - a.n || b.v - a.v).slice(0, 8) : [];
+  const rivals = st ? [...new Set([...Object.keys(st.bat), ...Object.keys(st.perdu)])].map(key => { const o = all.find(x => Core.norm(x.nom) === key); return o ? { nom: o.nom, v: st.bat[key] || 0, d: st.perdu[key] || 0 } : null; })
+    .filter(Boolean).sort((a, b) => (b.v + b.d) - (a.v + a.d)).slice(0, 6) : [];
+  const shown = fin.filter(p => S.filter === "tout" || inMode(p, S.filter)), max = S.pmax || 30;
+  return `${head}
+    ${st ? `<section class="card"><h2>📊 Statistiques</h2>${detailStats(st, -1, true)}</section>
+    <section class="card"><h2>📈 Évolution de sa gloire</h2>${spark(pr.evo)}</section>
+    <section class="card"><h2>🎛️ Par mode</h2><div class="mboxes">${modeBox("cartes", sc)}${modeBox("autres", sa)}</div></section>` : ""}
+    ${games.length ? `<section class="card"><h2>🎮 Ses jeux</h2><div class="scroll"><table class="tbl left"><thead><tr><th>Jeu</th><th>Parties</th><th>🏆</th><th>Réussite</th></tr></thead><tbody>${games.map(g => `<tr><td>${E(g.j)}</td><td>${g.n}</td><td>${g.v}</td><td>${g.n ? Math.round(100 * g.v / g.n) : 0} %</td></tr>`).join("")}</tbody></table></div></section>` : ""}
+    ${rivals.length ? `<section class="card"><h2>🤝 Face à face</h2>${rivals.map(r => `<div class="vs"><div class="vst"><b>${face(r.nom)} ${plink(r.nom)}</b><small>${r.v} 🏆 · ${r.d} 💔</small></div><div class="vsb"><i style="width:${Math.round(100 * r.v / (r.v + r.d || 1))}%"></i></div></div>`).join("")}<small>Barre = part de ses victoires contre chaque joueur.</small></section>` : ""}
+    ${st ? `<section class="card"><h2>🏆 Records</h2>
+      <div class="row"><span>Joueur depuis le</span><b>${pr.premiere ? new Date(pr.premiere).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</b></div>
+      <div class="row"><span>Points marqués au total</span><b>${pr.points}</b></div>
+      ${pr.bestScore ? `<div class="row"><span>Meilleur score</span><b>${pr.bestScore.score} <small>${pr.bestScore.emoji || ""} ${E(pr.bestScore.jeu)}</small></b></div>` : ""}
+      ${pr.bestMarge && pr.bestMarge.marge ? `<div class="row"><span>Plus large victoire</span><b>+${pr.bestMarge.marge} <small>${pr.bestMarge.emoji || ""} ${E(pr.bestMarge.jeu)}</small></b></div>` : ""}
+      <div class="row"><span>Meilleure série</span><b>🔥 ${st.meilleureSerie} victoire${st.meilleureSerie > 1 ? "s" : ""}</b></div></section>` : ""}
+    <section class="card"><h2>📜 Toutes ses parties (${fin.length})</h2>${chips()}
+      ${shown.slice(0, max).map(p => { const r = resultOf(p, nom); return `<details class="gdet"><summary><i class="d ${r.res === "S" ? "E" : r.res}">${RES[r.res][2]}</i><span class="who"><b>${p.emoji || ""} ${E(p.jeu)}</b><small>${dateFr(p.date)}${p.joueurs.length > 1 ? " · vs " + E(p.joueurs.filter((_, j) => j !== r.i).slice(0, 3).join(", ")) : " · solo"}</small></span><em>${r.n > 1 ? "#" + r.rang + " · " : ""}${r.score}</em></summary>
+        <div class="scroll"><table class="tbl"><thead><tr><th>#</th>${p.joueurs.map((n, j) => `<th class="${j === r.i ? "lead" : ""}">${j === r.i ? E(n) : plink(n)}</th>`).join("")}</tr></thead>
+        <tbody>${p.manches.map((m, q) => `<tr><th>${q + 1}</th>${m.map(x => `<td>${x}</td>`).join("")}</tr>`).join("")}</tbody>
+        <tfoot><tr><th>Σ</th>${Core.totals(p).map((v, j) => `<td class="${j === r.i ? "lead" : ""}">${v}</td>`).join("")}</tr></tfoot></table></div>
+        ${p.variante ? `<small>🧩 ${E(p.variante)}</small>` : ""}</details>`; }).join("") || `<p class="empty"><small>Aucune partie dans ce mode.</small></p>`}
+      ${shown.length > max ? `<button class="btn" data-a="more">Voir plus (${shown.length - max} restantes)</button>` : ""}</section>`;
+}
+const backTo = `<a class="back" href="#/joueurs">← Joueurs</a>`;
+
 // ---------- pages ----------
 const PAGES = {
   "": () => {
@@ -201,7 +246,7 @@ const PAGES = {
       <a class="btn main" href="#/partie">▶️ Reprendre la partie</a></section>` : ""}
     ${dj ? `<section class="card daily"><h2>🌟 Jeu du jour</h2><div class="dj"><span class="djicon">${dj.emoji}</span><div><b>${E(dj.name)}</b><small>${dj.solo ? "Solo · bats ton record" : nbJoueurs(dj)}${dj.play ? " · jouable ici" : ""}</small></div></div>
       <button class="btn" data-a="play" data-v="${dj.id}">${dj.solo ? "▶️ Jouer maintenant" : "🎮 Lancer ce jeu"}</button></section>` : ""}
-    ${all.length ? `<section class="card"><h2>🏅 Haut du classement ${MODES[m].emoji}</h2>${all.slice(0, 3).map((x, k) => `<div class="minirk"><span>${["🥇", "🥈", "🥉"][k]}</span>${face(x.nom)}<b>${E(x.nom)}</b><em>${x.pg} ⭐</em></div>`).join("")}
+    ${all.length ? `<section class="card"><h2>🏅 Haut du classement ${MODES[m].emoji}</h2>${all.slice(0, 3).map((x, k) => `<div class="minirk"><span>${["🥇", "🥈", "🥉"][k]}</span>${face(x.nom)}<b>${plink(x.nom)}</b><em>${x.pg} ⭐</em></div>`).join("")}
       <a class="btn" href="#/classement">Voir tout le classement</a></section>` : ""}
     <section class="card"><h2>Dernières parties ${MODES[m].emoji}</h2>${recent.map(p => `<div class="recent"><span>${p.emoji} ${E(p.jeu)} <small>${dateFr(p.date)}</small></span>
       <b>🏆 ${E(Core.ranking(p)[0].nom)}</b></div>`).join("") || "Aucune partie enregistrée."}${recent.length ? `<a class="btn" href="#/historique">📜 Tout l'historique</a>` : ""}</section>`;
@@ -216,39 +261,59 @@ const PAGES = {
   plus: () => `<section class="card menu"><h2>Plus</h2>
       <a href="#/jeux"><i>📚</i>Jeux et règles</a><a href="#/historique"><i>📜</i>Historique</a>
       <a href="#/stats"><i>📊</i>Statistiques</a><a href="#/succes"><i>🏆</i>Succès</a>
-      <a href="#/general"><i>🌍</i>Classement général</a><a href="#/compte"><i>👥</i>Mon compte</a>
+      <a href="#/joueurs"><i>🧑‍🤝‍🧑</i>Joueurs</a><a href="#/general"><i>🌍</i>Classement général</a><a href="#/compte"><i>👥</i>Mon compte</a>
       <a href="#/aide"><i>💡</i>Aide et nouveautés</a><a href="#/parametres"><i>⚙️</i>Paramètres</a></section>`,
 
   compte: () => {
     if (!Cloud.enabled()) return `${backPlus}<section class="card"><h1>👥 Comptes joueurs</h1><p>Les comptes ne sont pas encore activés sur cette installation. Ton jeu fonctionne normalement, avec les données gardées sur ce téléphone.</p></section>`;
     if (Cloud.active()) return `${backPlus}<section class="card"><h1>👤 Mon compte</h1>
-      <div class="row"><span>Nom d'utilisateur</span><b>${E(Cloud.pseudo())}</b></div>
-      ${Cloud.mail() ? `<div class="row"><span>E-mail</span><b>${E(Cloud.mail())}</b></div>` : ""}
+      <div class="row"><span>Pseudo</span><b>${E(Cloud.pseudo())}</b></div>
       <div class="row"><span>Sauvegarde</span><b>${Core.server === false ? "📱 Hors ligne (envoi au retour du réseau)" : "☁️ En ligne"}</b></div>
       <small>Tes parties, favoris, profil et records sont rattachés à ton compte : retrouve-les sur n'importe quel téléphone en te connectant.</small>
       <a class="btn main" href="#/general">🌍 Classement général</a>
       <button class="btn" data-a="sync">🔄 Synchroniser maintenant</button>
       <button class="btn" data-a="logout">🚪 Se déconnecter</button></section>`;
-    const A = S.auth = S.auth || { tab: "login", id: "", email: "", pseudo: "" }, msg = `<p id="cMsg" role="status"><small>${E(Cloud.msg || "")}</small></p>`;
-    if (Cloud.recov) return `${backPlus}<section class="card"><h1>🔐 Nouveau mot de passe</h1>
-      <p>Choisis ton nouveau mot de passe, puis tu seras connecté.</p>
-      <label for="cNew">Nouveau mot de passe</label><input id="cNew" type="password" placeholder="6 caractères minimum" autocomplete="new-password">
-      ${msg}<button class="btn main" data-a="newpw">✅ Enregistrer</button></section>`;
-    const up = A.tab === "signup";
     return `${backPlus}<section class="card"><h1>👥 Mon compte</h1>
-      <div class="chips" style="margin-bottom:14px"><button class="${up ? "" : "on"}" data-a="authtab" data-v="login">🔑 Connexion</button><button class="${up ? "on" : ""}" data-a="authtab" data-v="signup">✨ Inscription</button></div>
-      ${up ? `<p>Crée ton compte pour retrouver tes parties sur tous tes appareils et apparaître au classement général.</p>
-      <label for="cEmail">E-mail</label><input id="cEmail" type="email" inputmode="email" placeholder="toi@exemple.com" autocomplete="email" autocapitalize="off" value="${E(A.email)}">
-      <label for="cPseudo">Nom d'utilisateur</label><input id="cPseudo" placeholder="Visible par les autres joueurs" autocomplete="username" autocapitalize="off" maxlength="20" value="${E(A.pseudo)}">
-      <label for="cPass">Mot de passe</label><input id="cPass" type="password" placeholder="6 caractères minimum" autocomplete="new-password">
-      ${msg}<button class="btn main" data-a="signup">✨ Créer mon compte</button>
-      <small>Ton nom d'utilisateur est celui que tes amis écrivent dans une partie pour la retrouver dans leur historique.</small>`
-      : `<label for="cId">E-mail</label><input id="cId" type="text" inputmode="email" placeholder="toi@exemple.com" autocomplete="username" autocapitalize="off" value="${E(A.id)}">
-      <label for="cPass">Mot de passe</label><input id="cPass" type="password" placeholder="Ton mot de passe" autocomplete="current-password">
-      ${msg}<button class="btn main" data-a="login">🔑 Se connecter</button>
-      <button class="btn" data-a="forgot">❓ Mot de passe oublié</button>
-      <small>Ancien compte sans e-mail ? Tape ton pseudo à la place de l'e-mail.</small>`}
-      <small style="display:block;margin-top:10px">Tes données d'avant la connexion sur ce téléphone seront rattachées à ton compte.</small></section>`;
+      <p>Crée ton compte pour retrouver tes parties sur tous tes appareils et apparaître au classement général.</p>
+      <label for="cPseudo">Pseudo</label><input id="cPseudo" placeholder="Ton pseudo" autocomplete="username" autocapitalize="off" maxlength="20">
+      <label for="cPass" style="margin-top:12px">Mot de passe</label><input id="cPass" type="password" placeholder="6 caractères minimum" autocomplete="current-password">
+      <p id="cMsg" role="status"><small>${E(Cloud.msg || "")}</small></p>
+      <button class="btn main" data-a="login">🔑 Se connecter</button>
+      <button class="btn" data-a="signup">✨ Créer mon compte</button>
+      <small>Tes données d'avant la connexion sur ce téléphone seront rattachées à ton compte.</small></section>`;
+  },
+
+  joueur: () => {
+    const key = decodeURIComponent(location.hash.slice(2).split("/")[1] || ""), raw = key.replace(/^[un]:/, "");
+    let c = key.startsWith("u:") ? (Cloud.board || []).find(p => p.user_id === raw) : cloudOf(raw), uid = key.startsWith("u:") ? raw : c && c.user_id;
+    if (Cloud.active() && uid && uid === Cloud.session().uid) { setTimeout(() => { location.hash = "#/profil"; }); return ""; }
+    if (!key.startsWith("u:") && isMe(raw)) { setTimeout(() => { location.hash = "#/profil"; }); return ""; }
+    if (key.startsWith("u:") && !c) return `${backTo}<section class="card empty"><h1>👤 Joueur</h1><p>${Cloud.boardErr || (Cloud.active() ? "Chargement du profil…" : "Connecte-toi pour voir les profils des joueurs.")}</p>${Cloud.active() ? "" : `<a class="btn main" href="#/compte">👥 Me connecter</a>`}</section>`;
+    if (!c) {                                     // joueur sans compte : profil construit avec les parties de ce téléphone
+      const nom = (S.hist.flatMap(p => p.joueurs).find(n => Core.norm(n) === Core.norm(raw)) || raw).trim();
+      return joueurView(nom, face(nom).replace(/^<span[^>]*>|<\/span>$/g, ""), S.hist, null, `<p><small>Pas de compte : stats calculées avec les parties enregistrées sur ce téléphone.</small></p>`) ;
+    }
+    const nom = (c.stats && c.stats.nom) || c.pseudo, cache = Cloud.pc[c.user_id];
+    if (!cache || (!cache.busy && Date.now() - cache.t > 20000)) Cloud.loadPlayer(c.user_id, nom).then(() => { if (S.page === "joueur" && !typing()) draw(); });
+    const k = Core.norm(nom), mine = S.hist.filter(p => p.joueurs.some(n => Core.norm(n) === k)), seen = new Set(), parties = [...((cache && cache.parties) || []), ...mine].filter(p => !seen.has(p.id) && seen.add(p.id));
+    const pg = m => c.stats && c.stats[m] ? c.stats[m].pg : null;
+    const info = `<p><small>${E(c.pseudo)} · compte ScoreMaster${c.updated_at ? " · vu le " + dateFr(c.updated_at) : ""}</small></p>${!cache || cache.busy && !parties.length ? `<p><small>⏳ Chargement de ses parties…</small></p>` : ""}${cache && cache.err ? `<p><small>${E(cache.err)}</small></p>` : ""}`;
+    return joueurView(nom, `${E(c.avatar || "🎲")}`, parties, Cloud.board, info);
+  },
+
+  joueurs: () => {
+    const rows = [], seen = new Set(), me = Cloud.active() ? Cloud.session().uid : null;
+    (Cloud.active() ? Cloud.board || [] : []).forEach(p => {
+      const nom = (p.stats && p.stats.nom) || p.pseudo; seen.add(Core.norm(nom)); seen.add(Core.norm(p.pseudo));
+      const a = p.stats && p.stats.cartes, b = p.stats && p.stats.autres;
+      rows.push({ nom: p.pseudo, av: E(p.avatar || "🎲"), href: p.user_id === me ? "#/profil" : "#/joueur/u:" + p.user_id, pg: (a ? a.pg : 0) + (b ? b.pg : 0), sub: `${a ? "🃏 " + a.pg + " ⭐" : ""}${a && b ? " · " : ""}${b ? "🎲 " + b.pg + " ⭐" : ""}` || "Pas encore classé", acc: true, me: p.user_id === me });
+    });
+    Core.stats(S.hist).forEach(x => { if (seen.has(Core.norm(x.nom))) return; rows.push({ nom: x.nom, av: null, href: pHref(x.nom), pg: x.pg, sub: `${x.jouees} partie(s) · ${x.victoires} 🏆`, acc: false, me: isMe(x.nom) }); });
+    known().forEach(n => { const key = Core.norm(n); if (!seen.has(key) && !rows.some(r => Core.norm(r.nom) === key)) rows.push({ nom: n, av: null, href: pHref(n), pg: 0, sub: "Pas encore classé", acc: false, me: isMe(n) }); });
+    rows.sort((a, b) => b.pg - a.pg || a.nom.localeCompare(b.nom));
+    return `${backPlus}<section class="card"><h1>🧑‍🤝‍🧑 Joueurs</h1><p><small>Touche un joueur pour voir son profil, ses stats et toutes ses parties. 🌐 = joueur avec un compte.</small></p>
+      ${Cloud.active() ? "" : `<p><small>Connecte-toi pour voir aussi tous les joueurs ayant un compte.</small></p><a class="btn" href="#/compte">👥 Me connecter</a>`}
+      <div class="list">${rows.map(r => `<a class="row plrow ${r.me ? "me" : ""}" href="${r.href}"><span>${r.av ? `<span class="av mini">${r.av}</span>` : face(r.nom)} <b>${E(r.nom)}</b>${r.acc ? " 🌐" : ""}${r.me ? " (toi)" : ""}<br><small>${E(r.sub)}</small></span><b>${r.pg} ⭐ ›</b></a>`).join("") || `<p class="empty">Aucun joueur pour l'instant.</p>`}</div>${Cloud.boardErr && !Cloud.board ? `<small>${E(Cloud.boardErr)}</small>` : ""}</section>`;
   },
 
   general: () => {
@@ -257,8 +322,8 @@ const PAGES = {
     if (!Cloud.active()) return `${backPlus}<section class="card"><h1>🌍 Classement général</h1><p>Connecte-toi pour voir le classement de tous les joueurs.</p><a class="btn main" href="#/compte">👥 Me connecter</a></section>`;
     if (Date.now() - Cloud.boardT > 15000) Cloud.loadBoard().then(() => { if (S.page === "general" && !typing()) draw(); });
     const me = Cloud.session().uid, rows = (Cloud.board || []).filter(p => p.stats && p.stats[mode]).sort((a, b) => b.stats[mode].pg - a.stats[mode].pg);
-    return `${backPlus}<section class="card"><h1>🌍 Classement général ${MODES[mode].emoji}</h1><p><small>Tous les joueurs ayant un compte · mode ${MODES[mode].nom}.</small></p>
-      <div class="list">${rows.map((p, k) => { const s = p.stats[mode]; return `<div class="row ${p.user_id === me ? "me" : ""}"><span>${["🥇", "🥈", "🥉"][k] || k + 1 + "."} ${E(p.avatar || "🎲")} <b>${E(p.pseudo)}</b>${p.user_id === me ? " (toi)" : ""}<br><small>${s.niveau ? s.niveau.emoji + " " + s.niveau.nom + " · " : ""}${s.jouees} partie(s) · ${s.victoires} 🏆</small></span><b>${s.pg} ⭐</b></div>`; }).join("") || `<p class="empty">${Cloud.boardT && !Cloud.board ? (Cloud.boardErr || "Chargement…") : "Personne n'est encore classé : termine une partie !"}</p>`}</div>
+    return `${backPlus}<section class="card"><h1>🌍 Classement général ${MODES[mode].emoji}</h1><p><small>Tous les joueurs ayant un compte · mode ${MODES[mode].nom}. Touche un joueur pour voir son profil et toutes ses parties.</small></p><a class="btn" href="#/joueurs">👥 Tous les joueurs</a>
+      <div class="list">${rows.map((p, k) => { const s = p.stats[mode]; return `<a class="row plrow ${p.user_id === me ? "me" : ""}" href="${p.user_id === me ? "#/profil" : "#/joueur/u:" + p.user_id}"><span>${["🥇", "🥈", "🥉"][k] || k + 1 + "."} ${E(p.avatar || "🎲")} <b>${E(p.pseudo)}</b>${p.user_id === me ? " (toi)" : ""}<br><small>${s.niveau ? s.niveau.emoji + " " + s.niveau.nom + " · " : ""}${s.jouees} partie(s) · ${s.victoires} 🏆</small></span><b>${s.pg} ⭐ ›</b></a>`; }).join("") || `<p class="empty">${Cloud.boardT && !Cloud.board ? (Cloud.boardErr || "Chargement…") : "Personne n'est encore classé : termine une partie !"}</p>`}</div>
       ${Cloud.boardErr && Cloud.board ? `<small>${E(Cloud.boardErr)}</small>` : ""}</section>`;
   },
 
@@ -336,7 +401,7 @@ const PAGES = {
     const p = S.last; if (!p) return `${back}<section class="card empty"><h1>🏁 Fin de partie</h1><p>Aucune partie terminée pour l'instant.</p><a class="btn main" href="#/nouvelle">🎮 Nouvelle partie</a></section>`;
     const gl = gloire(p), r = Core.ranking(p), win = Core.leaders(p).map(i => p.joueurs[i]).join(" & ");
     return `<section class="card"><div class="trophy">🏆</div><h1 style="text-align:center">${E(win)}</h1>
-      <p style="text-align:center">gagne à ${p.emoji} ${E(p.jeu)}</p>${gl.banner}${r.map((x, k) => `<div class="rk"><span>${["🥇", "🥈", "🥉"][k] || k + 1}</span><b>${E(x.nom)}${gl.gain(x.nom)}</b><em>${x.total}</em></div>`).join("")}
+      <p style="text-align:center">gagne à ${p.emoji} ${E(p.jeu)}</p>${gl.banner}${r.map((x, k) => `<div class="rk"><span>${["🥇", "🥈", "🥉"][k] || k + 1}</span><b>${plink(x.nom)}${gl.gain(x.nom)}</b><em>${x.total}</em></div>`).join("")}
       <button class="btn main" data-a="again">🔁 Rejouer avec les mêmes joueurs</button><button class="btn" data-a="share">📤 Partager le résultat</button><a class="btn" href="#/nouvelle">🎮 Nouvelle partie</a><a class="btn" href="#/historique">📜 Historique</a></section>`;
   },
 
@@ -356,16 +421,16 @@ const PAGES = {
     const byPg = Core.stats(S.hist, mode, days), st = [...byPg].sort(SORT[S.sort]), list = histFiltered().filter(inPer);
     const games = {}; list.forEach(p => games[p.jeu] = (games[p.jeu] || 0) + 1);
     const king = byPg[0], val = x => S.sort === "vic" ? x.victoires + " 🏆" : S.sort === "taux" ? x.taux + " %" : x.pg + " ⭐";
-    const pod = [1, 0, 2].map(k => { const x = st[k]; return x ? `<div class="pod p${k + 1}"><span class="pav">${k === 0 ? `<i class="crown">👑</i>` : ""}${face(x.nom)}</span><b>${E(x.nom)}</b><small>${val(x)}</small><div class="blk"><span>${k + 1}</span></div></div>` : `<div class="pod"></div>`; }).join("");
-    return `${back}<section class="card"><h1>🏅 Classement ${MODES[mode].emoji}</h1><p><small>Mode ${MODES[mode].nom} uniquement.</small></p>${chipRow(PERS, "per", S.per)}
+    const pod = [1, 0, 2].map(k => { const x = st[k]; return x ? `<div class="pod p${k + 1}"><span class="pav">${k === 0 ? `<i class="crown">👑</i>` : ""}${face(x.nom)}</span><b>${plink(x.nom)}</b><small>${val(x)}</small><div class="blk"><span>${k + 1}</span></div></div>` : `<div class="pod"></div>`; }).join("");
+    return `${back}<section class="card"><h1>🏅 Classement ${MODES[mode].emoji}</h1><p><small>Mode ${MODES[mode].nom} uniquement.</small></p><a class="btn" href="#/joueurs">👥 Tous les joueurs</a>${chipRow(PERS, "per", S.per)}
       <div class="kpis"><div><b>${list.length}</b><small>parties</small></div><div><b>${st.length}</b><small>joueurs</small></div><div><b>${E(Core.favori(games))}</b><small>jeu favori</small></div></div></section>
     ${king ? `<section class="card throne"><div class="crownbig">👑</div><h2>${S.per === "7" ? "Roi de la semaine" : S.per === "30" ? "Roi du mois" : "Roi de la colline"}</h2>
-        <div class="kingline"><div><b>${E(king.nom)}</b><small>${king.niveau.emoji} ${king.niveau.nom} · ${king.pg} ⭐${king.serie >= 2 ? " · 🔥 " + king.serie + " victoires d'affilée" : ""}</small></div></div>
+        <div class="kingline"><div><b>${plink(king.nom)}</b><small>${king.niveau.emoji} ${king.niveau.nom} · ${king.pg} ⭐${king.serie >= 2 ? " · 🔥 " + king.serie + " victoires d'affilée" : ""}</small></div></div>
         <div class="podium">${pod}</div></section>` : ""}
     <section class="card"><h2>⚔️ Ton défi</h2>${defiHtml(byPg)}<small class="gl">⭐ Gloire : +2 par partie, victoire +8 (+2 par adversaire), série de victoires en bonus.</small></section>
     <section class="card"><h2>Classement des joueurs</h2>${chipRow(SORTS, "sort", S.sort)}<div class="list">${st.map((s, k) => `<details class="pl ${k === 0 ? "king" : ""}"><summary>
         <span class="pos">${["🥇", "🥈", "🥉"][k] || k + 1}</span>${face(s.nom)}<span class="who"><b>${E(s.nom)}${byPg[0] === s ? " 👑" : ""}</b><small>${s.niveau.emoji} ${s.niveau.nom} · ${s.jouees} partie(s) · ${s.taux} %</small></span>${forme(s.forme.slice(-3))}<em>${val(s)}</em></summary>
-        <div class="pbody">${detailStats(s, byPg.indexOf(s))}</div></details>`).join("")
+        <div class="pbody">${detailStats(s, byPg.indexOf(s))}<a class="btn" href="${pHref(s.nom)}">👤 Voir le profil de ${E(s.nom)}</a></div></details>`).join("")
         || `<p class="empty">Termine une partie pour voir le classement.</p>`}</div></section>`;
   },
 
@@ -407,7 +472,7 @@ const PAGES = {
 };
 
 // ---------- routage ----------
-const NEED = ["", "nouvelle", "jeux", "historique", "classement", "profil", "parametres", "fin", "stats", "succes", "general"];
+const NEED = ["", "nouvelle", "jeux", "historique", "classement", "profil", "parametres", "fin", "stats", "succes", "general", "joueur", "joueurs"];
 const typing = () => /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName || "");
 let rendering = null, redo = false;
 // Un seul rendu à la fois : si on change de page pendant un rendu, on refait un seul rendu final (plus de page périmée qui écrase la bonne).
@@ -425,12 +490,14 @@ async function render() {
   const lg = document.querySelector(".logo>span"); if (lg) lg.textContent = MODES[mode].emoji;
   const tg = document.querySelector(".tag .mtag"); if (tg) tg.textContent = MODES[mode].emoji + " " + MODES[mode].nom;
   const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = mode === "autres" ? "#040a16" : "#12060b";
-  const tab = { "": "", partie: "", jouer: "nouvelle", fin: "classement", jeux: "plus", historique: "plus", stats: "plus", succes: "plus", parametres: "plus", aide: "plus", compte: "plus", general: "classement" }[page] ?? page;
+  const tab = { "": "", partie: "", jouer: "nouvelle", fin: "classement", jeux: "plus", historique: "plus", stats: "plus", succes: "plus", parametres: "plus", aide: "plus", compte: "plus", general: "classement", joueur: "classement", joueurs: "classement" }[page] ?? page;
   document.querySelectorAll("#tabs a").forEach(t => t.classList.toggle("on", t.dataset.p === tab));
-  document.body.dataset.theme = { classement: "or", fin: "or", succes: "or", profil: "emeraude", historique: "braise", stats: "emeraude", parametres: "acier", aide: "acier", plus: "acier", compte: "acier", general: "or" }[page] || "";
+  document.body.dataset.theme = { classement: "or", fin: "or", succes: "or", profil: "emeraude", historique: "braise", stats: "emeraude", parametres: "acier", aide: "acier", plus: "acier", compte: "acier", general: "or", joueur: "emeraude", joueurs: "or" }[page] || "";
   const needs = NEED.includes(page);
   if (needs) S.hist = Core.hist || await Core.list();   // données déjà en mémoire : affichage instantané
   if (redo) return;                                      // on a changé de page entre-temps : inutile de dessiner celle-ci
+  // classement des comptes (noms cliquables, avatars) : chargé en arrière-plan, au plus toutes les 30 s
+  if (needs && Cloud.active() && !Cloud._bl && Date.now() - Cloud.boardT > 30000) { Cloud._bl = 1; Cloud.loadBoard().finally(() => { Cloud._bl = 0; if (!rendering && !typing() && ["", "classement", "fin", "general", "joueur", "joueurs"].includes(S.page)) draw(); }); }
   const root = $("#root"), enter = S.force || page !== S.page || S.pmode !== mode, newPage = page !== S.page;
   S.force = false; S.page = page; S.pmode = mode;
   root.classList.toggle("enter", enter);
@@ -484,25 +551,16 @@ const scores = () => [...document.querySelectorAll(".sc")].map(i => Number(i.val
 const save = () => Core.setCurrent(S.cur, Core.mode());
 
 // ---------- actions ----------
-const authVals = () => { const g = id => ($("#" + id) || {}).value || "", A = S.auth = S.auth || { tab: "login", id: "", email: "", pseudo: "" };
-  if ($("#cId")) A.id = g("cId"); if ($("#cEmail")) A.email = g("cEmail"); if ($("#cPseudo")) A.pseudo = g("cPseudo"); return A; };
 const authDo = async kind => {
   const msg = $("#cMsg"), say = x => { Cloud.msg = x; if (msg) msg.innerHTML = "<small>" + E(x) + "</small>"; };
-  const A = authVals(), w = ($("#cPass") || {}).value || "", btns = () => document.querySelectorAll('[data-a="login"],[data-a="signup"],[data-a="forgot"],[data-a="newpw"]');
-  say("⏳ Un instant…"); btns().forEach(b => b.disabled = true);
-  try {
-    if (kind === "forgot") { await Cloud.forgot(A.id); say("📧 Si un compte existe pour cette adresse, un e-mail vient d'être envoyé : clique sur le lien pour choisir un nouveau mot de passe."); btns().forEach(b => b.disabled = false); return; }
-    const r = kind === "signup" ? await Cloud.signup(A.email, A.pseudo, w) : kind === "newpw" ? await Cloud.newPassword(($("#cNew") || {}).value) : await Cloud.login(A.id, w);
-    if (r && r.confirm) { A.tab = "login"; A.id = r.email; Cloud.msg = "📧 Compte créé ! Clique sur le lien envoyé à " + r.email + " pour confirmer ton e-mail, puis connecte-toi."; S.force = true; draw(); return; }
-    Cloud.msg = ""; S.auth = null; FX.apply(); FX.toast("✅ Connecté : " + Cloud.pseudo()); S.hist = Core.hist; S.force = true; draw();
-  } catch (e) { say("❌ " + (navigator.onLine === false ? "Pas de connexion Internet." : e.message)); btns().forEach(b => b.disabled = false); }
+  const p = $("#cPseudo").value, w = $("#cPass").value; say("⏳ Un instant…");
+  document.querySelectorAll('[data-a="login"],[data-a="signup"]').forEach(b => b.disabled = true);
+  try { await Cloud[kind](p, w); Cloud.msg = ""; FX.apply(); FX.toast("✅ Connecté : " + Cloud.pseudo()); S.hist = Core.hist; S.force = true; draw(); }
+  catch (e) { say("❌ " + (navigator.onLine === false ? "Pas de connexion Internet." : e.message)); document.querySelectorAll('[data-a="login"],[data-a="signup"]').forEach(b => b.disabled = false); }
 };
 const ACTIONS = {
   login: () => authDo("login"),
   signup: () => authDo("signup"),
-  forgot: () => authDo("forgot"),
-  newpw: () => authDo("newpw"),
-  authtab: v => { const A = authVals(); A.tab = v; Cloud.msg = ""; S.force = true; draw(); },
   logout: async () => {
     await Core.sync().catch(() => {}); await Core.list().catch(() => {});
     const lost = Core._pq().length + Core.pending();
@@ -601,7 +659,8 @@ const ACTIONS = {
   },
   stp: v => { const [i, d] = v.split(":"), inp = document.querySelectorAll(".sc")[Number(i)]; if (!inp) return; inp.value = (Number(inp.value) || 0) + Number(d); inp.dispatchEvent(new Event("input", { bubbles: true })); S.focus = Number(i); },
   surprise: () => { const l = gamesOf(Core.mode()).filter(g => !g.id.startsWith("libre")); ACTIONS.play(l[Math.floor(Math.random() * l.length)].id); FX.sfx("star"); },
-  filter: v => { S.filter = v; draw(); },
+  filter: v => { S.filter = v; S.pmax = 30; draw(); },
+  more: () => { S.pmax = (S.pmax || 30) + 30; draw(); },
   per: v => { S.per = v; S.force = true; draw(); },
   sort: v => { S.sort = v; draw(); },
   avatar: v => { Core.setMe({ nom: $("#meName").value.trim(), emoji: v, photo: null }); draw(); },
