@@ -1,7 +1,7 @@
 // Comptes joueurs (Supabase) : connexion par pseudo + mot de passe, sauvegarde en ligne par compte, classement général.
 // Sans configuration (config.js vide) : l'appli reste 100 % locale.
 const Cloud = {
-  SK: "sm_session", UK: "sm_uid", board: null, boardT: 0, boardErr: "", pc: {}, _pp: null, _last: "", msg: "",
+  SK: "sm_session", UK: "sm_uid", board: null, boardT: 0, boardErr: "", pc: {}, gc: {}, _pp: null, _last: "", msg: "",
   cfg() { const c = window.SM_CLOUD || {}; return c.url && c.key ? { url: c.url.replace(/\/+$/, ""), key: c.key } : null; },
   enabled() { return !!Cloud.cfg(); },
   session() { try { return JSON.parse(localStorage.getItem(Cloud.SK)); } catch (e) { return null; } },
@@ -113,6 +113,16 @@ const Cloud = {
       const seen = new Set(); c.parties = [...(own || []), ...other].map(r => r.data).filter(p => p && p.id && Array.isArray(p.joueurs) && Array.isArray(p.manches) && !seen.has(p.id) && seen.add(p.id));
       c.err = "";
     } catch (e) { c.err = "Impossible de charger ses parties (hors ligne ?)."; }
+    c.busy = false;
+  },
+  // toutes les parties d'un jeu (tous les comptes) pour son classement
+  async loadGame(jeu) {
+    const c = Cloud.gc[jeu] || (Cloud.gc[jeu] = { t: 0, parties: [], err: "", busy: false });
+    if (c.busy) return; c.busy = true; c.t = Date.now();
+    try {
+      const rows = await Cloud.rest("GET", "parties?select=data&limit=3000&" + encodeURIComponent("data->>jeu") + "=eq." + encodeURIComponent(jeu)), seen = new Set();
+      c.parties = (rows || []).map(r => r.data).filter(p => p && p.id && Array.isArray(p.joueurs) && Array.isArray(p.manches) && !seen.has(p.id) && seen.add(p.id)); c.err = "";
+    } catch (e) { c.err = "Parties des autres comptes indisponibles (hors ligne ?)."; }
     c.busy = false;
   },
   async loadBoard() {
