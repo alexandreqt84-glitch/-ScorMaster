@@ -55,5 +55,19 @@ window.LIM = {
   "tick-tack-bomb": 1,                                  // [règle] 1 point de pénalité par manche
   mikado: 170,                                          // [web] 41 baguettes, 170 points au total
   billard: 15,                                          // [règle] 15 billes à empocher
-  "just-dance": ({ v }) => /5/.test(v) ? 66665 : 13333  // [web] 13 333 par chanson (×5 pour une playlist de 5)
+  "just-dance": ({ v }) => /5/.test(v) ? 66665 : 13333, // [web] 13 333 par chanson (×5 pour une playlist de 5)
+
+  // ---------- Jeux populaires ajoutés (v1.3.0-pwa7) : seuls les jeux dont le maximum est borné par les règles ----------
+  trio: 12,                                             // [règle] 36 cartes = 12 trios en tout
+  flip7: 171,                                           // [web] règle officielle : 12+11+…+6 = 63, ×2 = 126, +30 (modificateurs +2…+10), +15 (Flip 7)
+  hanabi: ({ v }) => /multicolore/i.test(v) ? 30 : 25,  // [règle] 5 couleurs × 5 ; 6 couleurs avec les multicolores
+  "the-mind": 12,                                       // [règle] 12 niveaux au maximum (à 2 joueurs)
+  "love-letter": 1,                                     // [règle] un jeton d'affection par manche
+  whist: 7,                                             // [règle] 13 plis − 6 = 7 plis marquants
+  papayoo: 243,                                         // [règle] Payoo 1 à 20 = 210, le 7 compte 40 au lieu de 7
+  "exploding-kittens": 1, cah: 1,                       // [règle] 1 point par partie / par carte noire
+  pandemic: 1, bang: 1, cluedo: 1, puissance4: 1, dames: 1, jenga: 1, "loups-garous": 1, skull: 1, kubb: 1, // [règle] 1 point par victoire
+  echecs: 2,                                            // [règle] victoire 1 (ou 2 si on compte en demi-points)
+  bananagrams: 10,                                      // [règle] « 10 points moins les lettres inutilisées »
+  padel: 7                                              // [règle] un set se gagne 6-x ou 7-5 / 7-6
 };

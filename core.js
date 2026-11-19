@@ -135,20 +135,67 @@ const Core = {
     const cur = Core.LEVELS[i], nx = Core.LEVELS[i + 1];
     return { i, nom: cur[1], emoji: cur[2], next: nx ? nx[0] : null, nextNom: nx ? nx[1] : null, pct: nx ? Math.round(100 * (pg - cur[0]) / (nx[0] - cur[0])) : 100 };
   },
-  badges(s, rang) {
-    const g = Object.keys(s.jeux).length;
+  // Catégories de succès (ordre d'affichage)
+  ACH_CATS: [["debuts", "🎲", "Premiers pas"], ["parties", "🎯", "Parties jouées"], ["victoires", "⚔️", "Victoires"], ["series", "🔥", "Séries"], ["assidu", "📅", "Assiduité"], ["variete", "🌍", "Variété"], ["exploits", "💥", "Exploits"], ["gloire", "⭐", "Gloire"]],
+  // extras utiles aux succès (calculés à partir des parties du joueur)
+  extras(parties, nom) {
+    const k = Core.norm(nom), done = parties.filter(p => p.fini && p.joueurs.some(n => Core.norm(n) === k));
+    const pr = Core.profil(parties, nom), mine = pr.mine, x = { jours: Core.jours(parties, nom), maxN: 0, podiums: 0, nuit: 0, matin: 0, weekend: 0, modes: 0, solo: 0, duo: 0, adv: 0, jeuMax: 0, jeuVicMax: 0, ecrasant: 0, serre: 0, grande: 0 };
+    const modes = new Set(), adv = new Set(), par = {}, vic = {};
+    done.forEach(p => { const d = new Date(p.date), h = d.getHours(), w = d.getDay(); if (h < 5) x.nuit++; else if (h < 8) x.matin++; if (w === 0 || w === 6) x.weekend++; modes.add(p.mode); });
+    mine.forEach(g => {
+      x.maxN = Math.max(x.maxN, g.n); par[g.jeu] = (par[g.jeu] || 0) + 1;
+      if (g.n < 2) x.solo++; if (g.n === 2) x.duo++;
+      if (g.n >= 3 && g.rang <= 3) x.podiums++;
+      g.adv.forEach(a => adv.add(Core.norm(a)));
+      if (g.res === "V") { vic[g.jeu] = (vic[g.jeu] || 0) + 1; if (g.n >= 5) x.grande++; if (!g.low && g.score >= 5 && g.marge >= g.score / 2) x.ecrasant++; if (g.score >= 5 && g.marge <= 1) x.serre++; }
+    });
+    x.modes = modes.size; x.adv = adv.size; x.jeuMax = Math.max(0, ...Object.values(par)); x.jeuVicMax = Math.max(0, ...Object.values(vic));
+    return x;
+  },
+  // [emoji, nom, description, débloqué, [actuel, objectif], catégorie]
+  badges(s, rang, x) {
+    x = x || {}; const g = Object.keys(s.jeux).length, n = v => v || 0, A = (e, nom, d, cur, goal, cat) => [e, nom, d, cur >= goal, [Math.min(cur, goal), goal], cat];
     return [
-      ["👑", "Roi du classement", "Être n°1 du classement", rang === 0 && s.jouees > 0, [rang === 0 ? 1 : 0, 1]],
-      ["🥇", "Première victoire", "Gagner une partie", s.victoires >= 1, [s.victoires, 1]],
-      ["🔥", "En feu", "3 victoires d'affilée en cours", s.serie >= 3, [s.serie, 3]],
-      ["⚡", "Série de 5", "5 victoires d'affilée (record)", s.meilleureSerie >= 5, [s.meilleureSerie, 5]],
-      ["🎯", "Régulier", "Jouer 10 parties", s.jouees >= 10, [s.jouees, 10]],
-      ["💯", "Centenaire", "Jouer 100 parties", s.jouees >= 100, [s.jouees, 100]],
-      ["⚔️", "Dominateur", "Gagner 10 parties", s.victoires >= 10, [s.victoires, 10]],
-      ["💎", "Invaincu", "100 % de victoires sur 3 parties multijoueurs ou +", s.multi >= 3 && s.victoires === s.multi, [s.multi >= 3 && s.victoires === s.multi ? 3 : Math.min(2, s.multi), 3]],
-      ["🌍", "Touche-à-tout", "Jouer à 5 jeux différents", g >= 5, [g, 5]],
-      ["🌟", "Cent de gloire", "Atteindre 100 ⭐", s.pg >= 100, [s.pg, 100]],
-      ["🏆", "Grand champion", "Atteindre 540 ⭐ (niveau Champion)", s.pg >= 540, [s.pg, 540]]
+      A("🎲", "Premier pas", "Terminer une partie", s.jouees, 1, "debuts"),
+      A("🥇", "Première victoire", "Gagner une partie", s.victoires, 1, "debuts"),
+      A("🧑‍🤝‍🧑", "Jamais sans amis", "Jouer une partie à 3 joueurs ou plus", n(x.maxN), 3, "debuts"),
+      A("🧍", "En solo", "Jouer une partie seul", n(x.solo), 1, "debuts"),
+      A("🥉", "Habitué du podium", "Finir 5 fois dans les 3 premiers (parties à 3+)", n(x.podiums), 5, "debuts"),
+      A("🎯", "Régulier", "Jouer 10 parties", s.jouees, 10, "parties"),
+      A("🎮", "Habitué", "Jouer 25 parties", s.jouees, 25, "parties"),
+      A("🔁", "Accro", "Jouer 50 parties", s.jouees, 50, "parties"),
+      A("💯", "Centenaire", "Jouer 100 parties", s.jouees, 100, "parties"),
+      A("🏃", "Marathonien", "Jouer 250 parties", s.jouees, 250, "parties"),
+      A("🥊", "Gagnant", "Gagner 5 parties", s.victoires, 5, "victoires"),
+      A("⚔️", "Dominateur", "Gagner 10 parties", s.victoires, 10, "victoires"),
+      A("🛡️", "Machine à gagner", "Gagner 25 parties", s.victoires, 25, "victoires"),
+      A("🐉", "Terreur de la table", "Gagner 50 parties", s.victoires, 50, "victoires"),
+      A("👑", "Roi du classement", "Être n°1 du classement", rang === 0 && s.jouees > 0 ? 1 : 0, 1, "victoires"),
+      A("🔥", "En feu", "3 victoires d'affilée (record)", s.meilleureSerie, 3, "series"),
+      A("⚡", "Série de 5", "5 victoires d'affilée (record)", s.meilleureSerie, 5, "series"),
+      A("🚀", "Imparable", "8 victoires d'affilée (record)", s.meilleureSerie, 8, "series"),
+      A("💎", "Invaincu", "100 % de victoires sur 3 parties multijoueurs ou plus", s.multi >= 3 && s.victoires === s.multi ? 3 : Math.min(2, s.multi), 3, "series"),
+      A("📆", "Trois jours de suite", "Jouer 3 jours d'affilée", n(x.jours), 3, "assidu"),
+      A("🗓️", "Semaine parfaite", "Jouer 7 jours d'affilée", n(x.jours), 7, "assidu"),
+      A("🏖️", "Joueur du week-end", "Jouer 5 parties le samedi ou le dimanche", n(x.weekend), 5, "assidu"),
+      A("🌙", "Noctambule", "Jouer une partie entre minuit et 5 h", n(x.nuit), 1, "assidu"),
+      A("🌅", "Lève-tôt", "Jouer une partie entre 5 h et 8 h", n(x.matin), 1, "assidu"),
+      A("🌍", "Touche-à-tout", "Jouer à 5 jeux différents", g, 5, "variete"),
+      A("🧭", "Explorateur", "Jouer à 10 jeux différents", g, 10, "variete"),
+      A("🗺️", "Globe-trotter", "Jouer à 20 jeux différents", g, 20, "variete"),
+      A("❤️", "Fidèle", "Jouer 10 parties au même jeu", n(x.jeuMax), 10, "variete"),
+      A("🎓", "Spécialiste", "Gagner 5 parties au même jeu", n(x.jeuVicMax), 5, "variete"),
+      A("🃏", "Deux mondes", "Jouer en mode Cartes et en mode Autres jeux", n(x.modes), 2, "variete"),
+      A("🤝", "Sociable", "Affronter 5 adversaires différents", n(x.adv), 5, "variete"),
+      A("🎪", "Grande tablée", "Gagner une partie à 5 joueurs ou plus", n(x.grande), 1, "exploits"),
+      A("💥", "Victoire écrasante", "Gagner avec une marge d'au moins la moitié de son score", n(x.ecrasant), 1, "exploits"),
+      A("😅", "Au poil !", "Gagner avec 1 point d'écart", n(x.serre), 1, "exploits"),
+      A("🥋", "Duelliste", "Jouer 10 duels (2 joueurs)", n(x.duo), 10, "exploits"),
+      A("🌟", "Cent de gloire", "Atteindre 100 ⭐", s.pg, 100, "gloire"),
+      A("💠", "Expert", "Atteindre 220 ⭐", s.pg, 220, "gloire"),
+      A("🏆", "Grand champion", "Atteindre 540 ⭐ (niveau Champion)", s.pg, 540, "gloire"),
+      A("🌌", "Légende", "Atteindre 800 ⭐", s.pg, 800, "gloire")
     ];
   },
   // jours de jeu consécutifs (jusqu'à aujourd'hui, ou hier si pas encore joué aujourd'hui)
