@@ -173,7 +173,7 @@ function profilStats(me, all, rang, st) {
       <a class="btn main" href="#/classement">${rang === 0 ? "👑 Voir mon trône" : "⚔️ Aller chercher la 1re place"}</a></section>
     <section class="card"><h2>📈 Évolution de ma gloire</h2>${spark(pr.evo)}</section>
     <section class="card"><h2>🎛️ Par mode</h2><div class="mboxes">${modeBox("cartes", sc)}${modeBox("autres", sa)}</div></section>
-    ${games.length ? `<section class="card"><h2>🎮 Mes jeux</h2><div class="scroll"><table class="tbl left"><thead><tr><th>Jeu</th><th>Parties</th><th>🏆</th><th>Réussite</th></tr></thead><tbody>${games.map(g => `<tr><td>${E(g.j)}</td><td>${g.n}</td><td>${g.v}</td><td>${g.n ? Math.round(100 * g.v / g.n) : 0} %</td></tr>`).join("")}</tbody></table></div></section>` : ""}
+    ${games.length ? `<section class="card"><h2>🎮 Mes jeux</h2><div class="scroll"><table class="tbl left"><thead><tr><th>Jeu</th><th>Parties</th><th>🏆</th><th>Réussite</th></tr></thead><tbody>${games.map(g => `<tr><td><a class="plink" href="${gameHref(g.j)}">${E(g.j)}</a></td><td>${g.n}</td><td>${g.v}</td><td>${g.n ? Math.round(100 * g.v / g.n) : 0} %</td></tr>`).join("")}</tbody></table></div></section>` : ""}
     ${rivals.length ? `<section class="card"><h2>🤝 Face à face</h2>${rivals.map(r => `<div class="vs"><div class="vst"><b>${face(r.nom)} ${plink(r.nom)}</b><small>${r.v} 🏆 · ${r.d} 💔</small></div><div class="vsb"><i style="width:${Math.round(100 * r.v / (r.v + r.d || 1))}%"></i></div></div>`).join("")}<small>Barre = part de mes victoires contre chaque joueur.</small></section>` : ""}
     <section class="card"><h2>🏆 Mes records</h2>
       <div class="row"><span>Joueur depuis le</span><b>${pr.premiere ? new Date(pr.premiere).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</b></div>
@@ -229,6 +229,8 @@ function joueurView(nom, avatarHtmlStr, parties, board, info) {
         ${p.variante ? `<small>🧩 ${E(p.variante)}</small>` : ""}</details>`; }).join("") || `<p class="empty"><small>Aucune partie dans ce mode.</small></p>`}
       ${shown.length > max ? `<button class="btn" data-a="more">Voir plus (${shown.length - max} restantes)</button>` : ""}</section>`;
 }
+const gameOf = name => ALL.find(x => x.name === name);
+const gameHref = name => "#/jeu/" + (gameOf(name) ? gameOf(name).id : "libre-" + Core.mode());
 const backTo = `<a class="back" href="#/joueurs">← Joueurs</a>`;
 
 // ---------- pages ----------
@@ -316,13 +318,42 @@ const PAGES = {
       <div class="list">${rows.map(r => `<a class="row plrow ${r.me ? "me" : ""}" href="${r.href}"><span>${r.av ? `<span class="av mini">${r.av}</span>` : face(r.nom)} <b>${E(r.nom)}</b>${r.acc ? " 🌐" : ""}${r.me ? " (toi)" : ""}<br><small>${E(r.sub)}</small></span><b>${r.pg} ⭐ ›</b></a>`).join("") || `<p class="empty">Aucun joueur pour l'instant.</p>`}</div>${Cloud.boardErr && !Cloud.board ? `<small>${E(Cloud.boardErr)}</small>` : ""}</section>`;
   },
 
+  parjeu: () => {
+    const m = Core.mode(), c = {}; histFiltered().forEach(p => { c[p.jeu] = c[p.jeu] || { n: 0, last: 0 }; c[p.jeu].n++; c[p.jeu].last = Math.max(c[p.jeu].last, new Date(p.date).getTime()); });
+    const rows = Object.entries(c).sort((x, y) => y[1].n - x[1].n || y[1].last - x[1].last);
+    return `<a class="back" href="#/classement">← Classement</a><section class="card"><h1>🎮 Classement par jeu ${MODES[m].emoji}</h1><p><small>Choisis un jeu pour voir qui est le meilleur à ce jeu. Seuls les jeux déjà joués apparaissent.</small></p>
+      <div class="list">${rows.map(([j, v]) => { const g = gameOf(j); return `<a class="row plrow" href="${gameHref(j)}"><span>${g ? g.emoji : "✏️"} <b>${E(j)}</b><br><small>${v.n} partie(s) · dernière le ${dateFr(v.last)}</small></span><b>🏅 ›</b></a>`; }).join("") || `<p class="empty">Termine une partie pour voir apparaître les jeux.</p>`}</div></section>`;
+  },
+
+  jeu: () => {
+    const id = decodeURIComponent(location.hash.slice(2).split("/")[1] || ""), g = findGame(id);
+    if (!g) return `<a class="back" href="#/parjeu">← Par jeu</a><section class="card empty"><p>Jeu introuvable.</p></section>`;
+    const gc = Cloud.active() ? Cloud.gc[g.name] : null;
+    if (Cloud.active() && (!gc || (!gc.busy && Date.now() - gc.t > 20000))) Cloud.loadGame(g.name).then(() => { if (S.page === "jeu" && !typing()) draw(); });
+    const seen = new Set(), parties = [...(gc ? gc.parties : []), ...S.hist].filter(p => p.fini && p.jeu === g.name && !seen.has(p.id) && seen.add(p.id));
+    const low = !!g.low, best = {}, recs = [];
+    parties.forEach(p => { const t = Core.totals(p); p.joueurs.forEach((n, i) => { const k = Core.norm(n); if (!k) return; const b = best[k] || (best[k] = { n: 0, sum: 0, best: null });
+      b.n++; b.sum += t[i]; if (b.best === null || (low ? t[i] < b.best : t[i] > b.best)) b.best = t[i]; recs.push({ nom: n, score: t[i], date: p.date, n: p.joueurs.length }); }); });
+    const st = Core.stats(parties).sort(SORT[S.sort]), val = x => S.sort === "vic" ? x.victoires + " 🏆" : S.sort === "taux" ? x.taux + " %" : x.pg + " ⭐";
+    const top = recs.filter(r => r.n > 1 || g.solo).sort((x, y) => low ? x.score - y.score : y.score - x.score).slice(0, 5), recent = [...parties].sort((x, y) => new Date(y.date) - new Date(x.date)).slice(0, 5);
+    const solo = Core.best(g.id);
+    return `<a class="back" href="#/parjeu">← Par jeu</a><section class="card"><h1>${g.emoji} ${E(g.name)}</h1>
+      <div class="kpis"><div><b>${parties.length}</b><small>parties</small></div><div><b>${st.length}</b><small>joueurs</small></div><div><b>${top[0] ? top[0].score : "—"}</b><small>${low ? "meilleur (le plus bas)" : "meilleur score"}</small></div></div>
+      ${solo !== null ? `<div class="row"><span>🏅 Mon record solo</span><b>${solo}</b></div>` : ""}
+      ${gc && gc.busy && !gc.parties.length ? `<small>⏳ Chargement des parties de tous les comptes…</small>` : ""}${gc && gc.err ? `<small>${E(gc.err)}</small>` : ""}
+      <a class="btn" href="#/jeux">📖 Règles du jeu</a></section>
+    <section class="card"><h2>🏅 Meilleurs joueurs</h2>${chipRow(SORTS, "sort", S.sort)}<div class="list">${st.map((x, k) => { const b = best[Core.norm(x.nom)] || {}; return `<a class="row plrow ${isMe(x.nom) ? "me" : ""}" href="${pHref(x.nom)}"><span>${["🥇", "🥈", "🥉"][k] || k + 1 + "."} ${face(x.nom)} <b>${E(x.nom)}</b>${isMe(x.nom) ? " (toi)" : ""}<br><small>${x.jouees} partie(s) · ${x.victoires} 🏆 · ${x.taux} %${b.n ? " · meilleur " + b.best + " · moy. " + Math.round(b.sum / b.n) : ""}</small></span><b>${val(x)} ›</b></a>`; }).join("") || `<p class="empty">Aucune partie terminée à ce jeu.</p>`}</div></section>
+    ${top.length ? `<section class="card"><h2>🏆 Records</h2>${top.map((r, k) => `<div class="row"><span>${["🥇", "🥈", "🥉"][k] || k + 1 + "."} ${plink(r.nom)} <small>${dateFr(r.date)}</small></span><b>${r.score}</b></div>`).join("")}</section>` : ""}
+    ${recent.length ? `<section class="card"><h2>🕒 Dernières parties</h2>${recent.map(p => `<div class="row"><span>${dateFr(p.date)} · ${E(p.joueurs.join(", "))}</span><b>🏆 ${E(Core.ranking(p)[0].nom)}</b></div>`).join("")}</section>` : ""}`;
+  },
+
   general: () => {
     const mode = Core.mode();
     if (!Cloud.enabled()) return `${backPlus}<section class="card"><h1>🌍 Classement général</h1><p>Les comptes ne sont pas activés sur cette installation.</p></section>`;
     if (!Cloud.active()) return `${backPlus}<section class="card"><h1>🌍 Classement général</h1><p>Connecte-toi pour voir le classement de tous les joueurs.</p><a class="btn main" href="#/compte">👥 Me connecter</a></section>`;
     if (Date.now() - Cloud.boardT > 15000) Cloud.loadBoard().then(() => { if (S.page === "general" && !typing()) draw(); });
     const me = Cloud.session().uid, rows = (Cloud.board || []).filter(p => p.stats && p.stats[mode]).sort((a, b) => b.stats[mode].pg - a.stats[mode].pg);
-    return `${backPlus}<section class="card"><h1>🌍 Classement général ${MODES[mode].emoji}</h1><p><small>Tous les joueurs ayant un compte · mode ${MODES[mode].nom}. Touche un joueur pour voir son profil et toutes ses parties.</small></p><a class="btn" href="#/joueurs">👥 Tous les joueurs</a>
+    return `${backPlus}<section class="card"><h1>🌍 Classement général ${MODES[mode].emoji}</h1><p><small>Tous les joueurs ayant un compte · mode ${MODES[mode].nom}. Touche un joueur pour voir son profil et toutes ses parties.</small></p><div class="row2"><a class="btn" href="#/parjeu">🎮 Par jeu</a><a class="btn" href="#/joueurs">👥 Joueurs</a></div>
       <div class="list">${rows.map((p, k) => { const s = p.stats[mode]; return `<a class="row plrow ${p.user_id === me ? "me" : ""}" href="${p.user_id === me ? "#/profil" : "#/joueur/u:" + p.user_id}"><span>${["🥇", "🥈", "🥉"][k] || k + 1 + "."} ${E(p.avatar || "🎲")} <b>${E(p.pseudo)}</b>${p.user_id === me ? " (toi)" : ""}<br><small>${s.niveau ? s.niveau.emoji + " " + s.niveau.nom + " · " : ""}${s.jouees} partie(s) · ${s.victoires} 🏆</small></span><b>${s.pg} ⭐ ›</b></a>`; }).join("") || `<p class="empty">${Cloud.boardT && !Cloud.board ? (Cloud.boardErr || "Chargement…") : "Personne n'est encore classé : termine une partie !"}</p>`}</div>
       ${Cloud.boardErr && Cloud.board ? `<small>${E(Cloud.boardErr)}</small>` : ""}</section>`;
   },
@@ -362,7 +393,7 @@ const PAGES = {
         ${[...(g.rules || []), ...(g.scoring || []), ...(g.winner || [])].map(x => `<p>${E(x)}</p>`).join("")}
         ${(g.variants || []).map(x => `<p>🧩 <b>${E(x[0])}</b> : ${E(x[1])}</p>`).join("")}
         ${(l => l ? `<p>📏 Limite par manche (automatique) : <b>${l} points</b></p>` : "")(limiteAuto(g, null, g.dp || 2))}
-        <button class="btn" data-a="play" data-v="${g.id}">🎮 Jouer à ce jeu</button></details>`).join("")}</section>`).join("");
+        <div class="row2"><button class="btn" data-a="play" data-v="${g.id}">🎮 Jouer</button><a class="btn" href="#/jeu/${g.id}">🏅 Classement</a></div></details>`).join("")}</section>`).join("");
   },
 
   partie: () => {
@@ -422,7 +453,7 @@ const PAGES = {
     const games = {}; list.forEach(p => games[p.jeu] = (games[p.jeu] || 0) + 1);
     const king = byPg[0], val = x => S.sort === "vic" ? x.victoires + " 🏆" : S.sort === "taux" ? x.taux + " %" : x.pg + " ⭐";
     const pod = [1, 0, 2].map(k => { const x = st[k]; return x ? `<div class="pod p${k + 1}"><span class="pav">${k === 0 ? `<i class="crown">👑</i>` : ""}${face(x.nom)}</span><b>${plink(x.nom)}</b><small>${val(x)}</small><div class="blk"><span>${k + 1}</span></div></div>` : `<div class="pod"></div>`; }).join("");
-    return `${back}<section class="card"><h1>🏅 Classement ${MODES[mode].emoji}</h1><p><small>Mode ${MODES[mode].nom} uniquement.</small></p><a class="btn" href="#/joueurs">👥 Tous les joueurs</a>${chipRow(PERS, "per", S.per)}
+    return `${back}<section class="card"><h1>🏅 Classement ${MODES[mode].emoji}</h1><p><small>Mode ${MODES[mode].nom} uniquement.</small></p><div class="row2"><a class="btn" href="#/parjeu">🎮 Par jeu</a><a class="btn" href="#/joueurs">👥 Joueurs</a></div>${chipRow(PERS, "per", S.per)}
       <div class="kpis"><div><b>${list.length}</b><small>parties</small></div><div><b>${st.length}</b><small>joueurs</small></div><div><b>${E(Core.favori(games))}</b><small>jeu favori</small></div></div></section>
     ${king ? `<section class="card throne"><div class="crownbig">👑</div><h2>${S.per === "7" ? "Roi de la semaine" : S.per === "30" ? "Roi du mois" : "Roi de la colline"}</h2>
         <div class="kingline"><div><b>${plink(king.nom)}</b><small>${king.niveau.emoji} ${king.niveau.nom} · ${king.pg} ⭐${king.serie >= 2 ? " · 🔥 " + king.serie + " victoires d'affilée" : ""}</small></div></div>
@@ -472,7 +503,7 @@ const PAGES = {
 };
 
 // ---------- routage ----------
-const NEED = ["", "nouvelle", "jeux", "historique", "classement", "profil", "parametres", "fin", "stats", "succes", "general", "joueur", "joueurs"];
+const NEED = ["", "nouvelle", "jeux", "historique", "classement", "profil", "parametres", "fin", "stats", "succes", "general", "joueur", "joueurs", "jeu", "parjeu"];
 const typing = () => /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName || "");
 let rendering = null, redo = false;
 // Un seul rendu à la fois : si on change de page pendant un rendu, on refait un seul rendu final (plus de page périmée qui écrase la bonne).
@@ -490,9 +521,9 @@ async function render() {
   const lg = document.querySelector(".logo>span"); if (lg) lg.textContent = MODES[mode].emoji;
   const tg = document.querySelector(".tag .mtag"); if (tg) tg.textContent = MODES[mode].emoji + " " + MODES[mode].nom;
   const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.content = mode === "autres" ? "#040a16" : "#12060b";
-  const tab = { "": "", partie: "", jouer: "nouvelle", fin: "classement", jeux: "plus", historique: "plus", stats: "plus", succes: "plus", parametres: "plus", aide: "plus", compte: "plus", general: "classement", joueur: "classement", joueurs: "classement" }[page] ?? page;
+  const tab = { "": "", partie: "", jouer: "nouvelle", fin: "classement", jeux: "plus", historique: "plus", stats: "plus", succes: "plus", parametres: "plus", aide: "plus", compte: "plus", general: "classement", joueur: "classement", joueurs: "classement", jeu: "classement", parjeu: "classement" }[page] ?? page;
   document.querySelectorAll("#tabs a").forEach(t => t.classList.toggle("on", t.dataset.p === tab));
-  document.body.dataset.theme = { classement: "or", fin: "or", succes: "or", profil: "emeraude", historique: "braise", stats: "emeraude", parametres: "acier", aide: "acier", plus: "acier", compte: "acier", general: "or", joueur: "emeraude", joueurs: "or" }[page] || "";
+  document.body.dataset.theme = { classement: "or", fin: "or", succes: "or", profil: "emeraude", historique: "braise", stats: "emeraude", parametres: "acier", aide: "acier", plus: "acier", compte: "acier", general: "or", joueur: "emeraude", joueurs: "or", jeu: "or", parjeu: "or" }[page] || "";
   const needs = NEED.includes(page);
   if (needs) S.hist = Core.hist || await Core.list();   // données déjà en mémoire : affichage instantané
   if (redo) return;                                      // on a changé de page entre-temps : inutile de dessiner celle-ci
