@@ -197,7 +197,7 @@ function jeuDuJour(m) {
 // résultat d'un joueur dans une partie : V / D / E (égalité) / S (solo), rang et score
 function resultOf(p, nom) {
   const k = Core.norm(nom), i = p.joueurs.findIndex(n => Core.norm(n) === k); if (i < 0) return null;
-  const t = Core.totals(p), n = p.joueurs.length, rk = t.map(v => 1 + t.filter(w => p.low ? w < v : w > v).length), tops = rk.filter(x => x === 1).length;
+  const t = Core.totals(p), n = p.joueurs.length, rk = Core.rank(p, t).rk, tops = Core.rank(p, t).tops;
   return { i, n, rang: rk[i], score: t[i], res: n < 2 ? "S" : rk[i] === 1 && tops === 1 ? "V" : rk[i] === 1 ? "E" : "D" };
 }
 // succès d'un autre joueur (calculés à partir de ses parties lisibles) : une ligne par catégorie, dépliable
@@ -708,6 +708,7 @@ const ACTIONS = {
   del: () => { S.cur.manches.splice(S.edit, 1); S.edit = null; save(); draw(); },
   end: async () => {
     if (!S.cur.manches.length) return alert("Ajoute au moins une manche.");
+    if (S.cur.coop && S.cur.victoire === undefined) S.cur.victoire = confirm("🤝 Jeu coopératif : l'équipe a-t-elle GAGNÉ ?\n\nOK = victoire · Annuler = défaite");
     S.cur.fini = true;
     if (!(await Core.save(S.cur))) { S.cur.fini = false; return alert("❌ Échec de l'enregistrement : le stockage du téléphone est plein ou bloqué. La partie est conservée, libère de la place puis réessaie."); }
     S.newBadges = [];
@@ -725,7 +726,7 @@ const ACTIONS = {
   fav: v => { const on = Core.toggleFav(v); if ($("#picker")) refreshSetup(); FX.toast(on ? "⭐ Ajouté aux favoris" : "Retiré des favoris"); FX.sfx(on ? "star" : "undo"); },
   nm: v => { const f = [...document.querySelectorAll(".nm")].find(i => !i.value.trim()); if (!f) return FX.toast("Tous les noms sont remplis"); f.value = v; S.names = readNames(); refreshSetup(); },
   undo: () => { if (!S.cur || !S.cur.manches.length) return; S.cur.manches.pop(); S.edit = null; save(); draw(); FX.toast("↩️ Dernière manche annulée"); FX.sfx("undo"); },
-  again: () => { const p = S.last; if (!p) return; Core.setMode(p.mode === "autres" ? "autres" : "cartes"); S.cur = { ...p, id: Core.uid(), manches: [], fini: false, date: new Date().toISOString() }; S.edit = null; save(); location.hash = "#/partie"; },
+  again: () => { const p = S.last; if (!p) return; Core.setMode(p.mode === "autres" ? "autres" : "cartes"); S.cur = { ...p, victoire: undefined, id: Core.uid(), manches: [], fini: false, date: new Date().toISOString() }; S.edit = null; save(); location.hash = "#/partie"; },
   share: async () => {
     const p = S.last; if (!p) return; const r = Core.ranking(p), txt = `🏆 ${r[0].nom} gagne à ${p.jeu} !\n` + r.map((x, k) => `${["🥇", "🥈", "🥉"][k] || k + 1 + "."} ${x.nom} — ${x.total}`).join("\n") + "\n(ScoreMaster)";
     try { if (navigator.share) await navigator.share({ text: txt }); else { await navigator.clipboard.writeText(txt); FX.toast("📋 Résultat copié"); } } catch (e) {}

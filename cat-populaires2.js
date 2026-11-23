@@ -97,11 +97,11 @@
     ["Le plus haut score gagne."]);
 
   // ----- sports / jeux vidéo -----
-  A("mario-party", "Mario Party", "🍄", "Jeu vidéo", 2, 4, 4,
+  A("mario-party", "Mario Party", "🍄", "Jeux vidéo", 2, 4, 4,
     ["But du jeu : plateau avec mini-jeux. On avance avec un dé, on gagne des pièces et on achète des étoiles.", "À la fin, on reçoit des étoiles bonus."],
     ["Score : étoiles d'abord, puis pièces en cas d'égalité (on peut noter ⭐ × 100 + pièces)."],
     ["Le joueur avec le plus d'étoiles à la fin du dernier tour gagne."]);
-  A("rocket-league", "Rocket League", "🚗", "Jeu vidéo", 2, 8, 4,
+  A("rocket-league", "Rocket League", "🚗", "Jeux vidéo", 2, 8, 4,
     ["But du jeu : football en voiture : marquer plus de buts que l'adversaire en 5 minutes (prolongation au but en or).", "On joue en 1v1, 2v2 ou 3v3."],
     ["1 point par but ; compte les buts de chaque équipe (ou joueur en 1v1)."],
     ["L'équipe qui a marqué le plus de buts gagne."],

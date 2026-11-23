@@ -90,7 +90,7 @@ const Core = {
     if (typeof Cloud !== "undefined") Cloud.pushProfile();
     return true;
   },
-  async removeAll() { Core._sp([]); Core._spq([]); Core.hist = []; try { await Core._json(Core.API, { method: "DELETE" }); } catch (e) {} },
+  async removeAll() { Core._sp([]); Core._spq([]); Core.hist = []; try { await Core._json(Core.API, { method: "DELETE", headers: { "X-Confirm": "tout-supprimer" } }); } catch (e) {} },
   async remove(id) { Core._sp(Core._lp().filter(x => x.id !== id)); Core._spq(Core._pq().filter(x => x !== id)); if (Core.hist) Core.hist = Core.hist.filter(x => x.id !== id); try { await Core._json(Core.API + "/" + encodeURIComponent(id), { method: "DELETE" }); } catch (e) {} },
 
   // une partie en cours PAR MODE (Cartes / Autres jeux) : on ne voit jamais celle de l'autre mode
@@ -111,7 +111,7 @@ const Core = {
 
   create(game, names, target, limite, usuel) {
     return { id: Core.uid(), mode: game.mode, jeu: game.name, emoji: game.emoji, low: !!game.low, target: target || 0, limite: limite || 0, usuel: usuel || 0,
-      joueurs: names, manches: [], quick: game.quick || [], date: new Date().toISOString(), fini: false };
+      gid: game.id, coop: !!game.coop, joueurs: names, manches: [], quick: game.quick || [], date: new Date().toISOString(), fini: false };
   },
   totals: p => p.joueurs.map((_, i) => p.manches.reduce((s, m) => s + (Number(m[i]) || 0), 0)),
   ranking(p) {
@@ -204,13 +204,46 @@ const Core = {
     const d = new Date(); if (!days.has(d.toDateString())) d.setDate(d.getDate() - 1);
     let n = 0; while (days.has(d.toDateString())) { n++; d.setDate(d.getDate() - 1); } return n;
   },
+  // jeux coopératifs (victoire / défaite d'équipe) et équipes dont on connaît les joueurs
+  rank(p, t) {
+    if (p.coop && p.victoire !== undefined) return { rk: t.map(() => p.victoire ? 1 : 2), tops: p.victoire ? 1 : 0 };
+    if (p.teamOf) {
+      const ts = [...new Set(p.teamOf)].map(k => t[p.teamOf.indexOf(k)]), rk = t.map(v => 1 + ts.filter(w => p.low ? w < v : w > v).length);
+      return { rk, tops: ts.filter(w => !ts.some(x => p.low ? x < w : x > w)).length };
+    }
+    const rk = t.map(v => 1 + t.filter(w => p.low ? w < v : w > v).length); return { rk, tops: rk.filter(x => x === 1).length };
+  },
+  // partie par équipes avec les joueurs de chaque équipe (p.membres) -> une ligne par joueur (les stats vont à chaque personne)
+  explode: parties => parties.map(p => {
+    if (!p.membres || !p.fini || p.teamOf) return p;
+    const flat = [], teamOf = [];
+    p.joueurs.forEach((t, i) => { const ms = (p.membres[i] || []).filter(Boolean); (ms.length ? ms : [t]).forEach(n => { flat.push(n); teamOf.push(i); }); });
+    return { ...p, joueurs: flat, teamOf, manches: p.manches.map(m => teamOf.map(i => m[i])), equipes: p.joueurs };
+  }),
+  // niveau Elo (départ 1000) calculé sur une liste de parties d'un même jeu : battre un joueur mieux classé rapporte plus
+  elo(parties) {
+    const m = {}, K = 24;
+    Core.explode(parties).filter(p => p.fini && !p.coop && p.joueurs.length > 1).sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
+      const t = Core.totals(p), d = p.joueurs.map(() => 0), ks = p.joueurs.map(n => Core.norm(n));
+      ks.forEach((k, i) => { if (k && !m[k]) m[k] = { nom: p.joueurs[i].trim(), elo: 1000, n: 0 }; });
+      let opp = ks.map(() => 0);
+      p.joueurs.forEach((_, i) => p.joueurs.forEach((__, j) => { if (i === j || !ks[i] || !ks[j] || ks[i] === ks[j] || (p.teamOf && p.teamOf[i] === p.teamOf[j])) return; opp[i]++; }));
+      p.joueurs.forEach((_, i) => p.joueurs.forEach((__, j) => {
+        if (i === j || !ks[i] || !ks[j] || ks[i] === ks[j] || (p.teamOf && p.teamOf[i] === p.teamOf[j])) return;
+        const s = t[i] === t[j] ? .5 : ((p.low ? t[i] < t[j] : t[i] > t[j]) ? 1 : 0), e = 1 / (1 + Math.pow(10, (m[ks[j]].elo - m[ks[i]].elo) / 400));
+        d[i] += (s - e) * K / opp[i];
+      }));
+      ks.forEach((k, i) => { if (k) { m[k].elo += d[i]; m[k].n++; } });
+    });
+    return Object.values(m).map(x => ({ ...x, elo: Math.round(x.elo) })).sort((a, b) => b.elo - a.elo);
+  },
   // statistiques par joueur (mode = "cartes" | "autres" | null ; days = 0 pour tout l'historique)
   stats(parties, mode, days) {
     const since = days ? Date.now() - days * 864e5 : 0, m = {};
-    parties.filter(p => p.fini && (!mode || p.mode === mode) && (!since || new Date(p.date).getTime() >= since))
+    Core.explode(parties).filter(p => p.fini && (!mode || p.mode === mode) && (!since || new Date(p.date).getTime() >= since))
       .sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(p => {
-        const t = Core.totals(p), n = p.joueurs.length;
-        const rk = t.map(v => 1 + t.filter(w => p.low ? w < v : w > v).length), tops = rk.filter(x => x === 1).length;
+        const t = Core.totals(p), n = p.teamOf ? new Set(p.teamOf).size : p.joueurs.length;
+        const rk = Core.rank(p, t).rk, tops = Core.rank(p, t).tops;
         p.joueurs.forEach((nom, i) => {
           const k = Core.norm(nom); if (!k) return;
           const r = m[k] || (m[k] = { nom: nom.trim(), jouees: 0, multi: 0, victoires: 0, defaites: 0, egalites: 0, points: 0, pg: 0, serie: 0, meilleureSerie: 0, forme: [], jeux: {}, vic: {}, bat: {}, perdu: {}, derniere: 0 });
@@ -236,13 +269,13 @@ const Core = {
   },
   // détail d'un joueur : ses parties (avec résultat), évolution de sa gloire, records
   profil(parties, nom) {
-    const k = Core.norm(nom), done = parties.filter(p => p.fini).sort((a, b) => new Date(a.date) - new Date(b.date)), mine = [];
+    const k = Core.norm(nom), done = Core.explode(parties).filter(p => p.fini).sort((a, b) => new Date(a.date) - new Date(b.date)), mine = [];
     done.forEach((p, idx) => {
       const i = p.joueurs.findIndex(n => Core.norm(n) === k); if (i < 0) return;
-      const t = Core.totals(p), n = p.joueurs.length, rk = t.map(v => 1 + t.filter(w => p.low ? w < v : w > v).length), tops = rk.filter(x => x === 1).length;
+      const t = Core.totals(p), n = p.teamOf ? new Set(p.teamOf).size : p.joueurs.length, rk = Core.rank(p, t).rk, tops = Core.rank(p, t).tops;
       const res = n < 2 ? "S" : rk[i] === 1 && tops === 1 ? "V" : rk[i] === 1 ? "E" : "D";
-      const autres = t.filter((_, j) => j !== i), marge = res === "V" ? Math.abs(t[i] - (p.low ? Math.min(...autres) : Math.max(...autres))) : 0;
-      mine.push({ idx, jeu: p.jeu, emoji: p.emoji, date: p.date, mode: p.mode, n, rang: rk[i], score: t[i], res, marge, low: !!p.low, adv: p.joueurs.filter((_, j) => j !== i) });
+      const autres = t.filter((_, j) => j !== i && (!p.teamOf || p.teamOf[j] !== p.teamOf[i])), marge = res === "V" ? Math.abs(t[i] - (p.low ? Math.min(...autres) : Math.max(...autres))) : 0;
+      mine.push({ idx, jeu: p.jeu, emoji: p.emoji, date: p.date, mode: p.mode, n, rang: rk[i], score: t[i], res, marge, low: !!p.low, adv: p.joueurs.filter((_, j) => j !== i && (!p.teamOf || p.teamOf[j] !== p.teamOf[i])) });
     });
     const evo = mine.slice(-30).map(g => { const s = Core.stats(done.slice(0, g.idx + 1)).find(x => Core.norm(x.nom) === k); return s ? s.pg : 0; });
     const hauts = mine.filter(g => !g.low && g.n > 1), bestScore = hauts.sort((a, b) => b.score - a.score)[0] || null;

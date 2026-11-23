@@ -548,3 +548,10 @@ a.row.plrow.me{background:rgba(var(--rgb),.14);border-radius:14px;padding-left:8
 .pl.lnk:active{transform:scale(.98)}
 .prof{text-align:center}.prof .av.big{margin:0 auto 10px}.prof h1{margin-bottom:2px}
 .kpis:has(> div:nth-child(2):last-child){grid-template-columns:repeat(2,1fr)}
+
+/* ---- extras : mode TV, feuille de score, minuteur ---- */
+.tv h1{text-align:center;margin:.2em 0}.tv>p{text-align:center;opacity:.8}
+.tvrow{display:flex;align-items:center;gap:.6em;padding:.45em .3em;border-bottom:1px solid rgba(255,255,255,.08);font-size:clamp(1.3rem,6vw,2.4rem)}
+.tvrow b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tvrow em{font-style:normal;font-weight:800;font-size:1.3em}
+.tvrow.first em{color:var(--gold,#f5c451)}
+.sheet summary{cursor:pointer;font-weight:700}.sheet .line{margin:.4em 0}.sheet select{width:100%}
