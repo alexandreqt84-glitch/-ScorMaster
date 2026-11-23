@@ -52,5 +52,4 @@
   const plus0 = PAGES.plus, home0 = PAGES[""];
   PAGES.plus = function () { return plus0().replace("Bilan de l'année</span><u>›</u></a>", "Bilan de l'année</span><u>›</u></a><a href=\"#/outils\"><i>🧰</i><span>Outils de jeu</span><u>›</u></a>"); };
   PAGES[""] = function () { return home0.apply(this, arguments) + `<section class="card tile wide"><a class="btn" href="#/outils">🧰 Outils : dés · pile ou face · qui commence · vie</a></section>`; };
-  draw();
 })();

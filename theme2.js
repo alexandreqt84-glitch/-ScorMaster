@@ -24,7 +24,7 @@
       if (last.k === location.hash) cells.forEach((c, i) => { if (last.v[i] !== undefined && last.v[i] !== now[i]) { c.classList.add("pop"); spark(c); if (navigator.vibrate) navigator.vibrate(12); } });
       last = { k: location.hash, v: now };
     } catch (e) { console.log("theme2", e); }
-    obs.observe(root, { childList: true, subtree: true }); busy = false; };
+    obs.observe(root, { childList: true }); busy = false; };
   const obs = new MutationObserver(() => requestAnimationFrame(run));
   window.addEventListener("hashchange", () => requestAnimationFrame(run));
   run();

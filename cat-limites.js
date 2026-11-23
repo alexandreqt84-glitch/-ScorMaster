@@ -69,5 +69,11 @@ window.LIM = {
   pandemic: 1, bang: 1, cluedo: 1, puissance4: 1, dames: 1, jenga: 1, "loups-garous": 1, skull: 1, kubb: 1, // [règle] 1 point par victoire
   echecs: 2,                                            // [règle] victoire 1 (ou 2 si on compte en demi-points)
   bananagrams: 10,                                      // [règle] « 10 points moins les lettres inutilisées »
-  padel: 7                                              // [règle] un set se gagne 6-x ou 7-5 / 7-6
+  padel: 7, // [règle] un set se gagne 6-x ou 7-5 / 7-6
+  // ---------- v2.8.0 : jeux de cat-ajouts3.js dont chaque manche ou partie vaut 1 point (ou un barème borné) ----------
+  "tape-main": 1, "poker-dice": 1, gomoku: 1, pentago: 1, stratego: 1, quoridor: 1, nim: 1, twister: 1, "mario-tennis": 1, "pokemon-video": 1, minecraft: 1, // [règle] 1 point par victoire
+  "time-bomb": 1, "joking-hazard": 1, "pirate-popup": 1, "juste-prix": 1, "chat-perche": 1, "tir-corde": 1, // [règle] 1 point par manche
+  ecarte: 3,                                            // [règle] roi 1 + plis 1 ... ou « vole » 2 + roi 1
+  motus: 2,                                             // [règle] 1 point, 2 si trouvé en 3 essais ou moins
+  marelle: 1,                                           // [règle] 1 point par case réussie
 };

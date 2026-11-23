@@ -5,8 +5,11 @@
   // ---------- thème clair / sombre / auto ----------
   const look = () => { try { return localStorage.getItem("sm_look") || "auto"; } catch (e) { return "auto"; } };
   const applyLook = () => { const l = look(), c = l === "clair" || (l === "auto" && matchMedia("(prefers-color-scheme: light)").matches);
-    document.body.dataset.look = c ? "clair" : "sombre"; const hb = document.getElementById("lookbtn"); if (hb) hb.textContent = c ? "🌙" : "☀️"; const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = c ? "#f4f1ec" : "#06060d"; };
-  applyLook(); matchMedia("(prefers-color-scheme: light)").addEventListener && matchMedia("(prefers-color-scheme: light)").addEventListener("change", applyLook);
+    document.body.dataset.look = c ? "clair" : "sombre"; document.documentElement.dataset.look = c ? "clair" : "sombre"; const hb = document.getElementById("lookbtn"); if (hb) hb.textContent = c ? "🌙" : "☀️"; const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = c ? "#f4f1ec" : "#06060d"; };
+  const eco = () => { try { return localStorage.getItem("sm_eco") || "auto"; } catch (e) { return "auto"; } };
+  const applyEco = () => { const m = eco(); let on = m === "on"; if (m === "auto") { try { const d = JSON.parse(localStorage.getItem("sm_autoeco")); on = !!(d && d.eco); } catch (x) { on = false; } } document.documentElement.classList.toggle("eco", on); };
+  window.SM_applyEco = applyEco;
+  applyEco(); applyLook(); matchMedia("(prefers-color-scheme: light)").addEventListener && matchMedia("(prefers-color-scheme: light)").addEventListener("change", applyLook);
   // ---------- courbe : total cumulé de chaque joueur, manche après manche ----------
   const chart = p => {
     if (!p || !p.manches || p.manches.length < 2) return "";
@@ -61,6 +64,5 @@
   const hd = document.querySelector("header");
   if (hd && !document.getElementById("lookbtn")) { const b = document.createElement("button"); b.id = "lookbtn"; b.type = "button"; b.setAttribute("aria-label", "Basculer thème clair / sombre");
     b.onclick = () => ACTIONS.look(document.body.dataset.look === "clair" ? "sombre" : "clair"); hd.appendChild(b); applyLook(); }
-  document.querySelectorAll("[data-ver]").forEach(e => { e.textContent = "v1.5.3"; });
-  draw();
+  document.querySelectorAll("[data-ver]").forEach(e => { e.textContent = "v2.8.1"; });
 })();
