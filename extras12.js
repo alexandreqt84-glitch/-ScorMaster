@@ -15,6 +15,14 @@
     ["appli", "🛠️", "Application", [
       ["compte", "👥", "Mon compte"], ["sauvegarde", "💾", "Sauvegarde"], ["parametres", "⚙️", "Paramètres"], ["aide", "💡", "Aide et nouveautés"]]]
   ];
+  // mise en page des groupes, aussi injectée ici : si le navigateur garde une ancienne feuille de style en cache, le chiffre et le chevron restent bien rangés
+  if (!document.getElementById("pgrp-css")) { const st = document.createElement("style"); st.id = "pgrp-css";
+    st.textContent = "details.card.nav.pgrp>summary{display:flex!important;align-items:center;gap:14px;min-height:56px;padding:6px 0;list-style:none}"
+      + "details.card.nav.pgrp>summary::-webkit-details-marker{display:none}details.card.nav.pgrp>summary::before{order:3;margin-left:2px}"
+      + "details.card.nav.pgrp>summary i{font-style:normal;font-size:26px;width:38px;flex:none;text-align:center}"
+      + "details.card.nav.pgrp>summary span{flex:1;font-weight:800}"
+      + "details.card.nav.pgrp>summary em{flex:none;font-style:normal;font-size:12.5px;line-height:1;opacity:.75;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.12);margin-left:4px}";
+    document.head.appendChild(st); }
   let ouvert = "jouer";                       // un seul groupe ouvert à la fois (retenu tant que l'appli reste ouverte)
   const ok = id => !!PAGES[id];                // n'affiche que les pages qui existent vraiment
   PAGES.plus = function () {
