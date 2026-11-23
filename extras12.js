@@ -1,4 +1,4 @@
-// ScoreMaster v2.5.0 : menu Plus rangé en 5 groupes qui se déplient (une seule liste ouverte à la fois, moins d'éléments à dessiner).
+// ScoreMaster : menu Plus rangé en groupes qui se déplient (un seul ouvert à la fois). Remis en v2.8.4 après l'essai des sections fixes.
 // Remplace les anciens ajouts en chaîne de PAGES.plus (extras*.js) : le menu est maintenant construit une seule fois, depuis cette liste.
 (function () {
   "use strict";
@@ -15,7 +15,7 @@
     ["appli", "🛠️", "Application", [
       ["compte", "👥", "Mon compte"], ["sauvegarde", "💾", "Sauvegarde"], ["parametres", "⚙️", "Paramètres"], ["aide", "💡", "Aide et nouveautés"]]]
   ];
-  // mise en page des groupes, aussi injectée ici : si le navigateur garde une ancienne feuille de style en cache, le chiffre et le chevron restent bien rangés
+  // mise en page des groupes (injectée ici : indépendante du cache de style.css) : chiffre en pastille et chevron à droite
   if (!document.getElementById("pgrp-css")) { const st = document.createElement("style"); st.id = "pgrp-css";
     st.textContent = "details.card.nav.pgrp>summary{display:flex!important;align-items:center;gap:14px;min-height:56px;padding:6px 0;list-style:none}"
       + "details.card.nav.pgrp>summary::-webkit-details-marker{display:none}details.card.nav.pgrp>summary::before{order:3;margin-left:2px}"
@@ -23,7 +23,7 @@
       + "details.card.nav.pgrp>summary span{flex:1;font-weight:800}"
       + "details.card.nav.pgrp>summary em{flex:none;font-style:normal;font-size:12.5px;line-height:1;opacity:.75;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.12);margin-left:4px}";
     document.head.appendChild(st); }
-  let ouvert = "jouer";                       // un seul groupe ouvert à la fois (retenu tant que l'appli reste ouverte)
+  let ouvert = "jouer";                       // un seul groupe ouvert à la fois
   const ok = id => !!PAGES[id];                // n'affiche que les pages qui existent vraiment
   PAGES.plus = function () {
     return `<section class="card"><h1>Plus</h1></section>` + GROUPES.map(g => {

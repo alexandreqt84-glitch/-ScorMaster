@@ -1,5 +1,5 @@
 // Service worker ScoreMaster : fonctionne hors ligne. Changer VERSION à chaque mise à jour des fichiers.
-const VERSION = "2.8.2-pwa33";
+const VERSION = "2.8.4-pwa35";
 const CACHE = "scoremaster-" + VERSION;
 const FILES = ["./", "index.html", "style.css", "theme2.css", "manifest.json", "icon.svg",
   "config.js", "core.js", "cloud.js", "fx.js", "app.js", "extras.js", "extras2.js", "extras3.js", "extras4.js", "extras5.js", "extras6.js", "extras7.js", "extras8.js", "extras9.js", "extras10.js", "extras11.js", "extras12.js", "extras13.js", "extras14.js", "theme2.js",
