@@ -64,5 +64,5 @@
   const hd = document.querySelector("header");
   if (hd && !document.getElementById("lookbtn")) { const b = document.createElement("button"); b.id = "lookbtn"; b.type = "button"; b.setAttribute("aria-label", "Basculer thème clair / sombre");
     b.onclick = () => ACTIONS.look(document.body.dataset.look === "clair" ? "sombre" : "clair"); hd.appendChild(b); applyLook(); }
-  document.querySelectorAll("[data-ver]").forEach(e => { e.textContent = "v2.8.4"; });
+  document.querySelectorAll("[data-ver]").forEach(e => { e.textContent = "v2.8.5"; });
 })();

@@ -88,4 +88,37 @@
     trr: () => { T.br = null; save(); rd("s-tr", trSec); },
     ggt: () => { const l = names(), who = l.length ? l[R(l.length)] : "Le perdant"; T.gage = [who, GAGES[R(GAGES.length)]]; buzz(); rd("s-gg", ggSec); }
   });
+
+  // ---------- v2.8.5 : branchement des comptes (Supabase) depuis l'appli ----------
+  // config.js vide = comptes désactivés (et chaque mise à jour des fichiers l'efface). On peut maintenant saisir l'URL et la clé
+  // dans Plus > Mon compte : elles sont gardées sur le téléphone (localStorage) et survivent aux mises à jour.
+  const CK = "sm_cloud_cfg";
+  const savedCfg = () => { try { const c = JSON.parse(localStorage.getItem(CK)); return c && c.url && c.key ? c : null; } catch (e) { return null; } };
+  if (typeof Cloud !== "undefined") {
+    const baseCfg = Cloud.cfg.bind(Cloud);
+    Cloud.cfg = () => baseCfg() || (() => { const c = savedCfg(); return c ? { url: String(c.url).replace(/\/+$/, ""), key: c.key } : null; })();
+    const baseCompte = PAGES.compte;
+    PAGES.compte = function () {
+      const h = baseCompte.apply(this, arguments);
+      if (!Cloud.enabled()) return `${backPlus}<section class="card"><h1>👥 Comptes joueurs</h1>
+        <p>Les comptes ne sont pas encore branchés. Colle ici l'adresse du projet et la clé « anon / publishable » de ton projet Supabase (voir LISEZ-MOI-COMPTES.txt). Elles restent sur ce téléphone.</p>
+        <label for="cl-url">Adresse du projet (Project URL)</label><input id="cl-url" placeholder="https://xxxx.supabase.co" autocapitalize="off" autocomplete="off">
+        <label for="cl-key">Clé anon / publishable</label><input id="cl-key" placeholder="eyJ… ou sb_publishable_…" autocapitalize="off" autocomplete="off">
+        <button class="btn main" data-a="clsave">🔌 Brancher les comptes</button>
+        <small>Ne colle jamais la clé « service_role » ou « secret ».</small></section>`;
+      return h + (savedCfg() && !baseCfg() ? `<section class="card"><small>Comptes branchés depuis cette appli (${E(savedCfg().url)}).</small><button class="btn" data-a="clclear">🔌 Débrancher</button></section>` : "");
+    };
+    Object.assign(ACTIONS, {
+      clsave: () => {
+        const u = ((document.getElementById("cl-url") || {}).value || "").trim(), k = ((document.getElementById("cl-key") || {}).value || "").trim();
+        if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/?$/i.test(u)) return FX.toast("L'adresse doit ressembler à https://xxxx.supabase.co");
+        let role = ""; try { role = JSON.parse(atob(k.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role; } catch (e) {}
+        if (/^sb_secret_/i.test(k) || role === "service_role") return FX.toast("Cette clé est secrète : utilise la clé anon / publishable");
+        if (k.length < 20) return FX.toast("Clé trop courte : copie la clé anon / publishable en entier");
+        try { localStorage.setItem(CK, JSON.stringify({ url: u, key: k })); } catch (e) { return FX.toast("Impossible d'enregistrer sur ce téléphone"); }
+        location.reload();
+      },
+      clclear: () => { try { localStorage.removeItem(CK); } catch (e) {} location.reload(); }
+    });
+  }
 })();
